@@ -20,9 +20,9 @@
 
 - [ ] Decide: should a place with ZERO landmarks still tell a story, or hard-fail? (currently: tells a truthful "quiet area" story)
 - [ ] Pick a nicer voice / let the OS voice be chosen
-- [ ] App icon + installable manifest (make it a real PWA)
+- [x] App icon (placeholder) + installable manifest + service worker (real PWA)
 - [ ] Tighten Wikipedia results (filter out boring/irrelevant articles)
-- [ ] Connect custom domain (roadlore.nolimitjones.com via GoDaddy)
+- [x] Connect custom domain (roadlore.nolimitjones.com — auto-verified via Vercel DNS)
 - [ ] Evaluate moving to Next.js 16 (clears 2 residual low-risk DoS advisories; breaking change, not urgent for a Vercel-hosted no-image-optimizer app)
 
 ## Later — The Bigger Vision (do NOT build yet)

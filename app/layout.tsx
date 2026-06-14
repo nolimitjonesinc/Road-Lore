@@ -1,9 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import RegisterSW from "./register-sw";
 
 export const metadata: Metadata = {
   title: "RoadLore",
   description: "Story time for wherever the road takes you.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "RoadLore",
+  },
+  icons: {
+    icon: "/favicon.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
@@ -20,7 +31,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <RegisterSW />
+      </body>
     </html>
   );
 }
