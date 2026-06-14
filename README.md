@@ -37,7 +37,8 @@ If the real services can't name your spot, RoadLore says so — it never invents
 
 | Variable            | What it's for                          |
 | ------------------- | -------------------------------------- |
-| `ANTHROPIC_API_KEY` | Lets the server ask Claude to write the story. Server-side only — never exposed to the browser. |
+| `ANTHROPIC_API_KEY` | Lets the server ask Claude to write the story. Server-side only. **Required.** |
+| `GEMINI_API_KEY`    | Narrates the story aloud with Gemini's voice (free tier). Optional — without it, the phone's built-in voice is used. |
 
 ## Deploy to Vercel
 
@@ -51,5 +52,5 @@ If the real services can't name your spot, RoadLore says so — it never invents
 
 - One page, one button. No accounts, no database, no maps.
 - Story writer is Claude Sonnet (cheap + fast). Swappable later.
-- Voice is the browser's built-in speech — quality varies by device.
+- Voice is Gemini TTS (free tier), same engine Loomiverse uses; falls back to the browser voice if no key.
 - Free map/Wikipedia services have polite rate limits; fine for normal use.

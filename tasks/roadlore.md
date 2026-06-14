@@ -8,7 +8,7 @@
 - [x] Server route that researches location and asks Claude to write the story
 - [x] No-fake-facts guardrail (honest error if real data is thin)
 - [x] One-button UI with loading states
-- [x] Read story aloud with browser voice (Repeat / Stop / Again)
+- [x] Read story aloud — Gemini TTS voice (free), browser voice as fallback (Repeat / Stop / Again)
 - [x] Plain-English errors (blocked location, no location, story failure)
 - [x] README + project rules
 - [ ] Add ANTHROPIC_API_KEY locally and confirm `npm run dev` end-to-end
@@ -19,7 +19,8 @@
 ## v1.1 — Polish (only after v1 is tested)
 
 - [ ] Decide: should a place with ZERO landmarks still tell a story, or hard-fail? (currently: tells a truthful "quiet area" story)
-- [ ] Pick a nicer voice / let the OS voice be chosen
+- [x] Real narrated voice (Gemini TTS, free tier) with robot-voice fallback
+- [x] Cinematic landing redesign (dusk-highway scene, motion, glass UI)
 - [x] App icon (placeholder) + installable manifest + service worker (real PWA)
 - [ ] Tighten Wikipedia results (filter out boring/irrelevant articles)
 - [x] Connect custom domain (roadlore.nolimitjones.com — auto-verified via Vercel DNS)

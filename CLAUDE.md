@@ -32,6 +32,16 @@ TypeScript + Tailwind, deployed on Vercel.
   free tier — but that's a deliberate decision, not a default.
 - Key lives in `ANTHROPIC_API_KEY` (env only, never in client code).
 
+## The voice (TTS) — same approach Loomiverse uses
+- Server route `app/api/voice/route.ts` turns the story into audio with
+  **Gemini TTS** (`gemini-2.5-flash-preview-tts`, voice `Puck`). This is the
+  same free-tier engine Loomiverse's "google-tts" uses. Key stays server-side.
+- Gemini returns raw PCM; we wrap it in a WAV header before sending it.
+- The browser plays the audio; `hooks/useSpeech.ts` falls back to the phone's
+  built-in voice if there's no key, an error, or autoplay is blocked.
+- "Repeat" replays the cached audio — no second API call.
+- Cost: free tier (no card). Key lives in `GEMINI_API_KEY` (optional; blank = robot voice).
+
 ## Style of the story
 Fun, touristy, lightly sassy, cinematic, family-safe. Written for listening,
 not reading. Under ~60 seconds. No directions, no "look at the screen."

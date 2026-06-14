@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSpeech } from "@/hooks/useSpeech";
 
 interface Source {
@@ -16,20 +16,74 @@ interface Story {
   sources: Source[];
 }
 
+type Phase = "intro" | "idle" | "loading" | "done" | "denied";
+
 const LOADING_LINES = [
   "Finding your spot on the planet…",
   "Checking what's nearby…",
   "Turning the map into story time…",
 ];
 
+function Scene() {
+  const stars = [
+    { top: "12%", left: "18%", d: "0s" },
+    { top: "20%", left: "78%", d: "0.8s" },
+    { top: "9%", left: "55%", d: "1.6s" },
+    { top: "26%", left: "33%", d: "2.2s" },
+    { top: "16%", left: "88%", d: "1.1s" },
+    { top: "30%", left: "65%", d: "0.4s" },
+  ];
+  return (
+    <div className="scene" aria-hidden="true">
+      <div className="sky" />
+      <div className="stardust" />
+      {stars.map((s, i) => (
+        <span
+          key={i}
+          className="star"
+          style={{ top: s.top, left: s.left, animationDelay: s.d }}
+        />
+      ))}
+      <div className="sun" />
+      <div className="road">
+        <div className="road-line" />
+      </div>
+      <div className="grain" />
+      <div className="vignette" />
+    </div>
+  );
+}
+
 export default function Home() {
   const { supported, speaking, speak, stop, repeat } = useSpeech();
-  const [phase, setPhase] = useState<"idle" | "loading" | "done">("idle");
+  const [phase, setPhase] = useState<Phase>("intro");
   const [loadingLine, setLoadingLine] = useState(LOADING_LINES[0]);
   const [story, setStory] = useState<Story | null>(null);
   const [error, setError] = useState<string>("");
 
-  async function go() {
+  useEffect(() => {
+    let cancelled = false;
+    async function check() {
+      try {
+        // @ts-ignore - permissions may be undefined on some browsers
+        const status = await navigator.permissions?.query({
+          name: "geolocation" as PermissionName,
+        });
+        if (cancelled || !status) return;
+        if (status.state === "granted") setPhase("idle");
+        else if (status.state === "denied") setPhase("denied");
+        else setPhase("intro");
+      } catch {
+        /* keep intro */
+      }
+    }
+    check();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function go() {
     setError("");
     setStory(null);
     stop();
@@ -71,105 +125,253 @@ export default function Home() {
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
-          setError(
-            "Location was blocked. Turn on location access and try again."
-          );
+          setPhase("denied");
         } else {
           setError("Couldn't find your location. Try again.");
+          setPhase("idle");
         }
-        setPhase("idle");
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-10 text-center">
-      <h1 className="text-5xl font-black tracking-tight mb-2">RoadLore</h1>
-      <p className="text-lg text-slate-300 mb-10">
-        Story time for wherever the road takes you.
-      </p>
-
-      {phase !== "done" && (
-        <button
-          onClick={go}
-          disabled={phase === "loading"}
-          className="w-full max-w-md rounded-3xl bg-amber-500 hover:bg-amber-400 active:scale-[0.98] transition text-slate-900 text-3xl font-extrabold py-10 px-6 shadow-xl disabled:opacity-70"
+    <>
+      <Scene />
+      <main className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center">
+        {/* Brand */}
+        <p
+          className="kicker text-[11px] text-[var(--gold)]/80 mb-4 rise"
+          style={{ animationDelay: "0.05s" }}
         >
-          {phase === "loading" ? loadingLine : "Tell Me Where I Am"}
-        </button>
-      )}
+          Audio Road Trips
+        </p>
+        <h1
+          className="wordmark text-6xl sm:text-7xl font-extrabold mb-3 rise"
+          style={{ animationDelay: "0.15s" }}
+        >
+          RoadLore
+        </h1>
+        <p
+          className="text-lg text-[var(--muted)] mb-12 max-w-sm rise"
+          style={{ animationDelay: "0.28s" }}
+        >
+          Story time for wherever the road takes you.
+        </p>
 
-      {error && (
-        <p className="mt-8 max-w-md text-xl text-rose-300">{error}</p>
-      )}
-
-      {phase === "done" && story && (
-        <div className="w-full max-w-md">
-          <h2 className="text-2xl font-bold mb-1">{story.placeLabel}</h2>
-          {story.confidence === "low" && (
-            <p className="text-sm text-slate-400 mb-4">
-              Quiet corner of the map — here&apos;s the broader story.
+        {/* Intro / permission ask */}
+        {phase === "intro" && (
+          <div
+            className="glass w-full max-w-sm rounded-[28px] p-8 rise"
+            style={{ animationDelay: "0.4s" }}
+          >
+            <div className="text-5xl mb-4">📍</div>
+            <h2 className="text-2xl font-bold mb-2 font-[family-name:var(--font-display)]">
+              Where are you?
+            </h2>
+            <p className="text-[var(--muted)] mb-8 leading-relaxed">
+              RoadLore reads you a quick story about wherever you&apos;re
+              standing. Tap below and your phone will ask to share your
+              location — just tap{" "}
+              <span className="font-semibold text-[var(--cream)]">Allow</span>.
             </p>
-          )}
-          <p className="text-lg leading-relaxed text-slate-100 mb-8">
-            {story.spokenScript}
-          </p>
-
-          <div className="grid grid-cols-3 gap-3 mb-8">
+            <div className="ping-wrap">
+              <span className="ping" />
+              <span className="ping b" />
+              <button
+                onClick={go}
+                className="cta relative z-10 w-full text-xl font-extrabold py-5"
+              >
+                Turn On Location
+              </button>
+            </div>
             <button
-              onClick={repeat}
-              className="rounded-2xl bg-slate-700 hover:bg-slate-600 py-5 text-lg font-bold"
+              onClick={() => setPhase("idle")}
+              className="mt-4 text-[var(--muted)] text-sm hover:text-[var(--cream)] transition"
             >
-              Repeat
-            </button>
-            <button
-              onClick={stop}
-              className="rounded-2xl bg-slate-700 hover:bg-slate-600 py-5 text-lg font-bold"
-            >
-              Stop
-            </button>
-            <button
-              onClick={go}
-              className="rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-900 py-5 text-lg font-bold"
-            >
-              Again
+              Maybe later
             </button>
           </div>
+        )}
 
-          {speaking && (
-            <p className="text-sm text-amber-300 mb-6">Reading aloud…</p>
-          )}
+        {/* Main button */}
+        {phase === "idle" && (
+          <div
+            className="ping-wrap w-full max-w-sm rise"
+            style={{ animationDelay: "0.4s" }}
+          >
+            <span className="ping" />
+            <span className="ping b" />
+            <button
+              onClick={go}
+              className="cta relative z-10 w-full text-2xl sm:text-3xl font-extrabold py-8 px-6"
+            >
+              Tell Me Where I Am
+            </button>
+            {error && (
+              <p className="mt-6 text-base text-rose-300">{error}</p>
+            )}
+          </div>
+        )}
 
-          {story.sources.length > 0 && (
-            <div className="text-left">
-              <p className="text-xs uppercase tracking-wide text-slate-400 mb-2">
-                Sources
-              </p>
-              <ul className="space-y-1">
-                {story.sources.map((s) => (
-                  <li key={s.url}>
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-sky-300 hover:underline"
-                    >
-                      {s.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+        {/* Loading */}
+        {phase === "loading" && (
+          <div className="w-full max-w-sm">
+            <div className="cta w-full text-xl font-extrabold py-8 px-6 opacity-95">
+              {loadingLine}
             </div>
-          )}
+            <div className="mt-6 flex justify-center gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="w-2 h-2 rounded-full bg-[var(--gold)]"
+                  style={{
+                    animation: "twinkle 1s ease-in-out infinite",
+                    animationDelay: `${i * 0.18}s`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
-          {!supported && (
-            <p className="mt-6 text-sm text-slate-400">
-              (Your browser can&apos;t read aloud, but the story&apos;s above.)
+        {/* Location off — help */}
+        {phase === "denied" && (
+          <div className="glass w-full max-w-sm rounded-[28px] p-8 text-left rise">
+            <div className="text-5xl mb-3 text-center">🔒</div>
+            <h2 className="text-2xl font-bold mb-3 text-center font-[family-name:var(--font-display)]">
+              Location&apos;s switched off
+            </h2>
+            <p className="text-[var(--muted)] mb-4 leading-relaxed">
+              Your phone is blocking RoadLore from seeing where you are. Quick
+              fix on iPhone:
             </p>
-          )}
-        </div>
-      )}
-    </main>
+            <ol className="text-[var(--muted)] text-sm space-y-2 mb-7 list-decimal list-inside leading-relaxed">
+              <li>
+                Tap the{" "}
+                <span className="font-semibold text-[var(--cream)]">aA</span> on
+                the left of Safari&apos;s address bar.
+              </li>
+              <li>
+                Tap{" "}
+                <span className="font-semibold text-[var(--cream)]">
+                  Website Settings
+                </span>
+                .
+              </li>
+              <li>
+                Set{" "}
+                <span className="font-semibold text-[var(--cream)]">
+                  Location
+                </span>{" "}
+                to{" "}
+                <span className="font-semibold text-[var(--cream)]">Allow</span>
+                , then come back.
+              </li>
+            </ol>
+            <button
+              onClick={go}
+              className="cta w-full text-xl font-extrabold py-5"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Result */}
+        {phase === "done" && story && (
+          <div className="w-full max-w-md rise">
+            <div className="glass rounded-[28px] p-7 text-left mb-6">
+              <p className="kicker text-[10px] text-[var(--gold)]/80 mb-2">
+                You are here
+              </p>
+              <h2 className="text-2xl font-bold mb-3 font-[family-name:var(--font-display)] leading-tight">
+                {story.placeLabel}
+              </h2>
+              {story.confidence === "low" && (
+                <p className="text-sm text-[var(--muted)] mb-3">
+                  Quiet corner of the map — here&apos;s the broader story.
+                </p>
+              )}
+              <p className="text-[17px] leading-relaxed text-[var(--cream)]">
+                {story.spokenScript}
+              </p>
+              {speaking && (
+                <p className="mt-4 text-sm text-[var(--gold)] flex items-center gap-2">
+                  <span className="inline-flex gap-0.5 items-end h-4">
+                    {[0, 1, 2, 3].map((i) => (
+                      <span
+                        key={i}
+                        className="w-1 bg-[var(--gold)] rounded-full"
+                        style={{
+                          height: "100%",
+                          animation: "twinkle 0.7s ease-in-out infinite",
+                          animationDelay: `${i * 0.12}s`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  Reading aloud…
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <button
+                onClick={repeat}
+                className="glass rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
+              >
+                ↻ Repeat
+              </button>
+              <button
+                onClick={stop}
+                className="glass rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
+              >
+                ◼ Stop
+              </button>
+              <button
+                onClick={go}
+                className="cta rounded-2xl py-4 text-base font-extrabold"
+              >
+                ↺ Again
+              </button>
+            </div>
+
+            {story.sources.length > 0 && (
+              <div className="text-left px-1">
+                <p className="kicker text-[10px] text-[var(--muted)] mb-2">
+                  Real sources
+                </p>
+                <ul className="flex flex-wrap gap-2">
+                  {story.sources.map((s) => (
+                    <li key={s.url}>
+                      <a
+                        href={s.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-sm text-[var(--cream)] bg-white/5 border border-white/10 rounded-full px-3 py-1 hover:border-[var(--gold)]/40 transition"
+                      >
+                        {s.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!supported && (
+              <p className="mt-6 text-sm text-[var(--muted)]">
+                (Your browser can&apos;t read aloud, but the story&apos;s
+                above.)
+              </p>
+            )}
+          </div>
+        )}
+
+        <p className="mt-12 text-xs text-[var(--muted)]/60 rise" style={{ animationDelay: "0.6s" }}>
+          Real places · real history · no made-up facts
+        </p>
+      </main>
+    </>
   );
 }
