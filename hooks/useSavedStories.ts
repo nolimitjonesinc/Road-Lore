@@ -15,7 +15,10 @@ export interface SavedStory {
   confidence: string;
   sources: SavedSource[];
   savedAt: number;
+  audioUrl?: string; // public Supabase Storage link, once narration is stored
 }
+
+const AUDIO_BUCKET = "story-audio";
 
 // A stable per-device id so each phone sees its own saved list (until we add
 // real logins). Stored in the browser; the stories themselves live in Supabase.
@@ -42,6 +45,7 @@ function rowToStory(row: any): SavedStory {
     confidence: row.confidence || "",
     sources: row.sources || [],
     savedAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+    audioUrl: row.audio_url || undefined,
   };
 }
 
@@ -94,6 +98,29 @@ export function useSavedStories() {
     []
   );
 
+  // Uploads the narration audio to Supabase Storage once and links it to the
+  // story row, so future plays stream the stored file instead of regenerating.
+  const attachAudio = useCallback(async (id: string, blob: Blob) => {
+    if (!supabase || !blob) return;
+    const path = `${id}.wav`;
+    const { error: upErr } = await supabase.storage
+      .from(AUDIO_BUCKET)
+      .upload(path, blob, { contentType: "audio/wav", upsert: true });
+    if (upErr) return;
+    const { data: pub } = supabase.storage
+      .from(AUDIO_BUCKET)
+      .getPublicUrl(path);
+    const url = pub?.publicUrl;
+    if (!url) return;
+    await supabase
+      .from("roadlore_saved_stories")
+      .update({ audio_url: url })
+      .eq("id", id);
+    setStories((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, audioUrl: url } : s))
+    );
+  }, []);
+
   const remove = useCallback(async (id: string) => {
     if (!supabase) return;
     const { error } = await supabase
@@ -101,8 +128,12 @@ export function useSavedStories() {
       .delete()
       .eq("id", id)
       .eq("device_id", deviceId());
-    if (!error) setStories((prev) => prev.filter((p) => p.id !== id));
+    if (!error) {
+      setStories((prev) => prev.filter((p) => p.id !== id));
+      // Best-effort cleanup of the stored audio file.
+      supabase.storage.from(AUDIO_BUCKET).remove([`${id}.wav`]);
+    }
   }, []);
 
-  return { stories, loading, save, remove };
+  return { stories, loading, save, attachAudio, remove };
 }

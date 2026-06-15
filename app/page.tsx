@@ -57,7 +57,7 @@ function saveUsedArticles(titles: string[]) {
 
 export default function Home() {
   const { supported, speaking, audioLoading, speak, stop, repeat } = useSpeech();
-  const { save } = useSavedStories();
+  const { save, attachAudio } = useSavedStories();
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [phase, setPhase] = useState<Phase>("intro");
@@ -150,16 +150,23 @@ export default function Home() {
           setPhase("done");
           // Narrate immediately — speak() must fire before any await so it
           // stays within the browser's user-gesture window and autoplay works.
-          speak(data.spokenScript);
+          // It returns the generated audio so we can store it for reuse.
+          const audioPromise = speak(data.spokenScript);
           // Save in the background; don't block narration on it.
           save({
             placeLabel: data.placeLabel,
             spokenScript: data.spokenScript,
             confidence: data.confidence,
             sources: data.sources,
-          }).then((savedStory) => {
+          }).then(async (savedStory) => {
             setSaving(false);
             setSaved(!!savedStory);
+            // Once both the row and the audio exist, store the audio in
+            // Supabase so future plays stream it instead of regenerating.
+            if (savedStory) {
+              const blob = await audioPromise;
+              if (blob) attachAudio(savedStory.id, blob);
+            }
           }).catch(() => setSaving(false));
         } catch {
           setError("Something went sideways. Try again.");

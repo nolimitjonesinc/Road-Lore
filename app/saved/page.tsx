@@ -24,13 +24,14 @@ export default function SavedPage() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  function playOne(id: string, text: string) {
+  function playOne(id: string, text: string, audioUrl?: string) {
     if (playingId === id && speaking) {
       stop();
       setPlayingId(null);
     } else {
       setPlayingId(id);
-      speak(text);
+      // Stream the stored audio if we have it; otherwise regenerate from text.
+      speak(text, audioUrl);
     }
   }
 
@@ -86,7 +87,7 @@ export default function SavedPage() {
                 </p>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => playOne(s.id, s.spokenScript)}
+                    onClick={() => playOne(s.id, s.spokenScript, s.audioUrl)}
                     className="cta flex-1 rounded-xl py-3 text-sm font-extrabold"
                   >
                     {playingId === s.id && speaking ? "⏸  Stop" : "▶  Play"}

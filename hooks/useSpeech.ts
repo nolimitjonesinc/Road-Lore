@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Plays the story aloud using Gemini TTS audio from /api/voice.
-// Audio isn't stored anywhere — the text is the keeper; the voice is cheap to
-// regenerate on demand. "Repeat" replays the just-generated audio held in
-// memory for this session, so a quick re-listen costs nothing extra.
+// speak() returns the generated audio blob so the caller can store it in
+// Supabase. If a story already has stored audio, pass its URL to play it
+// straight from storage — no regeneration, no extra Gemini call.
 export function useSpeech() {
   const [supported, setSupported] = useState(true);
   const [speaking, setSpeaking] = useState(false);
@@ -42,12 +42,20 @@ export function useSpeech() {
     audio.play().catch(() => setSpeaking(false));
   }, []);
 
+  // storedUrl: if the story already has audio in Supabase Storage, play that
+  // directly. Otherwise generate it with Gemini and return the blob to store.
   const speak = useCallback(
-    async (text: string) => {
+    async (text: string, storedUrl?: string): Promise<Blob | null> => {
       stop();
       if (lastUrlRef.current) {
         URL.revokeObjectURL(lastUrlRef.current);
         lastUrlRef.current = "";
+      }
+
+      // Already stored — stream it back, no generation needed.
+      if (storedUrl) {
+        playUrl(storedUrl);
+        return null;
       }
 
       setAudioLoading(true);
@@ -64,12 +72,14 @@ export function useSpeech() {
           lastUrlRef.current = url;
           setAudioLoading(false);
           playUrl(url);
-        } else {
-          setAudioLoading(false);
+          return blob;
         }
+        setAudioLoading(false);
+        return null;
       } catch {
         setAudioLoading(false);
         /* Gemini unavailable — stay silent */
+        return null;
       }
     },
     [stop, playUrl]
