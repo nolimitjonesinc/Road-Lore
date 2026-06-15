@@ -9,8 +9,7 @@ export const SYSTEM_PROMPT = `You are RoadLore, a playful audio-first road trip 
 The user asked: "Tell me about where I am."
 
 Rules you must follow:
-- Use ONLY the verified context provided. Do NOT invent local facts, names, dates, or events.
-- If the context is thin, lean on the broader region truthfully instead of making things up. It is fine to say a place is quiet or off-the-map.
+- The verified context below is your foundation. You may also draw on your own knowledge about this area, its history, and its culture — but only facts you're genuinely confident about. Never invent specific details you're uncertain of. If the context is thin, use what you know about the broader region.
 - Make it fun, touristy, lightly sassy, cinematic, and family-friendly.
 - Write for LISTENING, not reading. No bullet points. No headings. No emojis.
 - Keep it under 60 seconds spoken (roughly 110-150 words).
@@ -24,7 +23,7 @@ export function buildUserMessage(ctx: LocationContext): string {
   lines.push(`PLACE: ${ctx.placeLabel}`);
   if (ctx.region) lines.push(`REGION: ${ctx.region}`);
   lines.push("");
-  lines.push("VERIFIED NEARBY CONTEXT (the only facts you may use):");
+  lines.push("VERIFIED NEARBY CONTEXT:");
 
   if (ctx.sources.length === 0) {
     lines.push(
@@ -37,6 +36,14 @@ export function buildUserMessage(ctx: LocationContext): string {
           ? `${s.distanceMeters} m away`
           : `${(s.distanceMeters / 1000).toFixed(1)} km away`;
       lines.push(`- ${s.title} (${dist}): ${s.summary}`);
+    });
+  }
+
+  if (ctx.osmPois.length > 0) {
+    lines.push("");
+    lines.push("NEARBY PLACES (from map data — use as local color and jumping-off points):");
+    ctx.osmPois.forEach((poi) => {
+      lines.push(`- ${poi.name} (${poi.type}, ${poi.distanceMeters}m away)`);
     });
   }
 
