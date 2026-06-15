@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getCachedAudio, putCachedAudio, hashKey } from "@/lib/audioCache";
 
 // Plays the story aloud using Gemini TTS audio from /api/voice.
-// No browser speech fallback — Gemini or silence.
+// Audio is cached on the device (IndexedDB) so replays are instant and work
+// offline — the same approach Loomiverse uses. No browser-voice fallback.
 export function useSpeech() {
   const [supported, setSupported] = useState(true);
   const [speaking, setSpeaking] = useState(false);
@@ -41,16 +43,35 @@ export function useSpeech() {
     audio.play().catch(() => setSpeaking(false));
   }, []);
 
+  // cacheKey: the saved story's id (so /saved replays the exact same audio).
+  // If omitted, we key off the text so it still caches within a session.
   const speak = useCallback(
-    async (text: string) => {
+    async (text: string, cacheKey?: string) => {
       stop();
       lastTextRef.current = text;
+      const key = cacheKey || hashKey(text);
       if (lastUrlRef.current) {
         URL.revokeObjectURL(lastUrlRef.current);
         lastUrlRef.current = "";
       }
 
       setAudioLoading(true);
+
+      // 1. On-device cache first — instant, free, works offline.
+      try {
+        const cached = await getCachedAudio(key);
+        if (cached) {
+          const url = URL.createObjectURL(cached);
+          lastUrlRef.current = url;
+          setAudioLoading(false);
+          playUrl(url);
+          return;
+        }
+      } catch {
+        /* fall through to generating it */
+      }
+
+      // 2. Not cached yet — generate with Gemini, then keep it for next time.
       try {
         const res = await fetch("/api/voice", {
           method: "POST",
@@ -60,6 +81,7 @@ export function useSpeech() {
         const ct = res.headers.get("content-type") || "";
         if (res.ok && ct.includes("audio")) {
           const blob = await res.blob();
+          putCachedAudio(key, blob).catch(() => {});
           const url = URL.createObjectURL(blob);
           lastUrlRef.current = url;
           setAudioLoading(false);

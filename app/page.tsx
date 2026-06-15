@@ -36,7 +36,7 @@ function getUsedArticles(): string[] {
 function saveUsedArticles(titles: string[]) {
   try {
     const existing = getUsedArticles();
-    const merged = [...new Set([...existing, ...titles])];
+    const merged = Array.from(new Set(existing.concat(titles)));
     // Cap at 100 so it never grows unbounded
     localStorage.setItem(USED_KEY, JSON.stringify(merged.slice(-100)));
   } catch { /* ignore */ }
@@ -122,9 +122,20 @@ export default function Home() {
           if (data.sources?.length) saveUsedArticles(data.sources.map((s: {title: string}) => s.title));
           setStory(data);
           setSaved(false);
+          setSaving(true);
           setSourcesOpen(false);
           setPhase("done");
-          speak(data.spokenScript);
+          // Auto-save the story text to Supabase, then narrate it — caching the
+          // audio under the saved row's id so it replays instantly and offline.
+          const savedStory = await save({
+            placeLabel: data.placeLabel,
+            spokenScript: data.spokenScript,
+            confidence: data.confidence,
+            sources: data.sources,
+          });
+          setSaving(false);
+          setSaved(!!savedStory);
+          speak(data.spokenScript, savedStory?.id);
         } catch {
           setError("Something went sideways. Try again.");
           setPhase("idle");
@@ -366,24 +377,18 @@ export default function Home() {
 
             <div className="flex flex-col gap-3 mb-6">
               <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={async () => {
-                    if (saved || saving || !story) return;
-                    setSaving(true);
-                    const ok = await save({
-                      placeLabel: story.placeLabel,
-                      spokenScript: story.spokenScript,
-                      confidence: story.confidence,
-                      sources: story.sources,
-                    });
-                    setSaving(false);
-                    setSaved(ok);
-                  }}
-                  disabled={saved || saving}
-                  className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition disabled:opacity-80"
+                <div
+                  className="glass w-full rounded-2xl py-4 text-base font-bold flex items-center justify-center text-center select-none"
+                  aria-live="polite"
                 >
-                  {saved ? "♥  Saved" : saving ? "Saving…" : "♡  Save"}
-                </button>
+                  {saving ? (
+                    "Saving…"
+                  ) : saved ? (
+                    <span className="text-[var(--gold)]">♥  Saved</span>
+                  ) : (
+                    <span className="text-[var(--muted)]">♡  Not saved</span>
+                  )}
+                </div>
                 <button
                   onClick={go}
                   className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"

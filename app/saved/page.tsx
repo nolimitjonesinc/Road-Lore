@@ -30,7 +30,7 @@ export default function SavedPage() {
       setPlayingId(null);
     } else {
       setPlayingId(id);
-      speak(text);
+      speak(text, id);
     }
   }
 
@@ -60,7 +60,7 @@ export default function SavedPage() {
               No saved stories yet
             </p>
             <p className="text-[var(--muted)] text-sm mb-6">
-              Tap the heart on a story to keep it here.
+              Every story you hear is kept here automatically.
             </p>
             <Link
               href="/"

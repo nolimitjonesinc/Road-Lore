@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { deleteCachedAudio } from "@/lib/audioCache";
 
 export interface SavedSource {
   title: string;
@@ -68,9 +69,13 @@ export function useSavedStories() {
     load();
   }, [load]);
 
+  // Returns the saved story (with its new id) so the caller can cache the
+  // narration audio under that id, or null if the save couldn't happen.
   const save = useCallback(
-    async (s: Omit<SavedStory, "id" | "savedAt">): Promise<boolean> => {
-      if (!supabase) return false;
+    async (
+      s: Omit<SavedStory, "id" | "savedAt">
+    ): Promise<SavedStory | null> => {
+      if (!supabase) return null;
       const { data, error } = await supabase
         .from("roadlore_saved_stories")
         .insert({
@@ -82,9 +87,10 @@ export function useSavedStories() {
         })
         .select()
         .single();
-      if (error || !data) return false;
-      setStories((prev) => [rowToStory(data), ...prev]);
-      return true;
+      if (error || !data) return null;
+      const story = rowToStory(data);
+      setStories((prev) => [story, ...prev]);
+      return story;
     },
     []
   );
@@ -96,7 +102,10 @@ export function useSavedStories() {
       .delete()
       .eq("id", id)
       .eq("device_id", deviceId());
-    if (!error) setStories((prev) => prev.filter((p) => p.id !== id));
+    if (!error) {
+      setStories((prev) => prev.filter((p) => p.id !== id));
+      deleteCachedAudio(id).catch(() => {});
+    }
   }, []);
 
   return { stories, loading, save, remove };
