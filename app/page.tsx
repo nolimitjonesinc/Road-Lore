@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import Scene from "./scene";
 import { useSpeech } from "@/hooks/useSpeech";
+import { useSavedStories } from "@/hooks/useSavedStories";
 
 interface Source {
   title: string;
@@ -24,38 +27,10 @@ const LOADING_LINES = [
   "Turning the map into story time…",
 ];
 
-function Scene() {
-  const stars = [
-    { top: "12%", left: "18%", d: "0s" },
-    { top: "20%", left: "78%", d: "0.8s" },
-    { top: "9%", left: "55%", d: "1.6s" },
-    { top: "26%", left: "33%", d: "2.2s" },
-    { top: "16%", left: "88%", d: "1.1s" },
-    { top: "30%", left: "65%", d: "0.4s" },
-  ];
-  return (
-    <div className="scene" aria-hidden="true">
-      <div className="sky" />
-      <div className="stardust" />
-      {stars.map((s, i) => (
-        <span
-          key={i}
-          className="star"
-          style={{ top: s.top, left: s.left, animationDelay: s.d }}
-        />
-      ))}
-      <div className="sun" />
-      <div className="road">
-        <div className="road-line" />
-      </div>
-      <div className="grain" />
-      <div className="vignette" />
-    </div>
-  );
-}
-
 export default function Home() {
   const { supported, speaking, speak, stop, repeat } = useSpeech();
+  const { save } = useSavedStories();
+  const [saved, setSaved] = useState(false);
   const [phase, setPhase] = useState<Phase>("intro");
   const [loadingLine, setLoadingLine] = useState(LOADING_LINES[0]);
   const [story, setStory] = useState<Story | null>(null);
@@ -116,6 +91,7 @@ export default function Home() {
             return;
           }
           setStory(data);
+          setSaved(false);
           setPhase("done");
           speak(data.spokenScript);
         } catch {
@@ -323,12 +299,30 @@ export default function Home() {
               >
                 {speaking ? "⏸  Stop" : "▶  Play Story"}
               </button>
-              <button
-                onClick={go}
-                className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
-              >
-                ↺  New Story
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    if (saved || !story) return;
+                    save({
+                      placeLabel: story.placeLabel,
+                      spokenScript: story.spokenScript,
+                      confidence: story.confidence,
+                      sources: story.sources,
+                    });
+                    setSaved(true);
+                  }}
+                  disabled={saved}
+                  className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition disabled:opacity-80"
+                >
+                  {saved ? "♥  Saved" : "♡  Save"}
+                </button>
+                <button
+                  onClick={go}
+                  className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
+                >
+                  ↺  New Story
+                </button>
+              </div>
             </div>
 
             {story.sources.length > 0 && (
@@ -362,9 +356,20 @@ export default function Home() {
           </div>
         )}
 
-        <p className="mt-12 text-xs text-[var(--muted)]/60 rise" style={{ animationDelay: "0.6s" }}>
-          Real places · real history · no made-up facts
-        </p>
+        <div
+          className="mt-12 flex flex-col items-center gap-3 rise"
+          style={{ animationDelay: "0.6s" }}
+        >
+          <Link
+            href="/saved"
+            className="text-sm font-semibold text-[var(--gold)]/90 hover:text-[var(--gold)] transition"
+          >
+            ♥ Saved stories
+          </Link>
+          <p className="text-xs text-[var(--muted)]/60">
+            Real places · real history · no made-up facts
+          </p>
+        </div>
       </main>
     </>
   );

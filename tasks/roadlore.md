@@ -28,7 +28,8 @@
 
 ## Later — The Bigger Vision (do NOT build yet)
 
-- [ ] Save stories (Supabase project already exists: ftcdqmrjjooluihysuyc)
+- [x] Save stories — on-device (localStorage): ♥ Save button + /saved page (play/delete)
+- [ ] Cloud-sync saved stories to Supabase (ftcdqmrjjooluihysuyc) — needs a simple login first so the list stays private
 - [ ] Story modes (History / Weird Facts / Family / Prairie Drama)
 - [ ] Drive-safety mode (audio-first when moving)
 - [ ] Optional: swap writer to Gemini free tier for $0 running cost
