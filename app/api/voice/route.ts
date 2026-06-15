@@ -80,7 +80,8 @@ export async function POST(req: Request) {
     });
 
     if (!res.ok) {
-      return NextResponse.json({ error: "voice-failed" }, { status: 502 });
+      const errBody = await res.text().catch(() => "");
+      return NextResponse.json({ error: "voice-failed", geminiStatus: res.status, geminiError: errBody }, { status: 502 });
     }
 
     const data = await res.json();
