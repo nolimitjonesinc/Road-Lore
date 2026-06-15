@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useSpeech() {
   const [supported, setSupported] = useState(true);
   const [speaking, setSpeaking] = useState(false);
+  const [audioLoading, setAudioLoading] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastTextRef = useRef<string>("");
@@ -49,6 +50,7 @@ export function useSpeech() {
         lastUrlRef.current = "";
       }
 
+      setAudioLoading(true);
       try {
         const res = await fetch("/api/voice", {
           method: "POST",
@@ -60,9 +62,13 @@ export function useSpeech() {
           const blob = await res.blob();
           const url = URL.createObjectURL(blob);
           lastUrlRef.current = url;
+          setAudioLoading(false);
           playUrl(url);
+        } else {
+          setAudioLoading(false);
         }
       } catch {
+        setAudioLoading(false);
         /* Gemini unavailable — stay silent */
       }
     },
@@ -76,5 +82,5 @@ export function useSpeech() {
     }
   }, [playUrl]);
 
-  return { supported, speaking, speak, stop, repeat };
+  return { supported, speaking, audioLoading, speak, stop, repeat };
 }

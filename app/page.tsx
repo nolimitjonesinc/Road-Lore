@@ -30,7 +30,7 @@ const LOADING_LINES = [
 const LOC_KEY = "rl_loc_granted";
 
 export default function Home() {
-  const { supported, speaking, speak, stop, repeat } = useSpeech();
+  const { supported, speaking, audioLoading, speak, stop, repeat } = useSpeech();
   const { save } = useSavedStories();
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -276,9 +276,40 @@ export default function Home() {
             <div className="flex flex-col gap-3 mb-6">
               <button
                 onClick={speaking ? stop : repeat}
-                className="cta w-full text-xl font-extrabold py-5"
+                disabled={audioLoading}
+                className="cta w-full text-xl font-extrabold py-5 disabled:cursor-default"
               >
-                {speaking ? "⏸  Stop" : "▶  Play Story"}
+                {audioLoading ? (
+                  <span className="flex items-center justify-center gap-3">
+                    <span className="inline-flex gap-[3px] items-end h-5">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <span
+                          key={i}
+                          className="w-1 bg-current rounded-full"
+                          style={{
+                            height: "100%",
+                            animation: "twinkle 0.6s ease-in-out infinite",
+                            animationDelay: `${i * 0.1}s`,
+                          }}
+                        />
+                      ))}
+                    </span>
+                    Preparing voice…
+                    <span className="inline-flex gap-[3px] items-end h-5">
+                      {[4, 3, 2, 1, 0].map((i) => (
+                        <span
+                          key={i}
+                          className="w-1 bg-current rounded-full"
+                          style={{
+                            height: "100%",
+                            animation: "twinkle 0.6s ease-in-out infinite",
+                            animationDelay: `${i * 0.1}s`,
+                          }}
+                        />
+                      ))}
+                    </span>
+                  </span>
+                ) : speaking ? "⏸  Stop" : "▶  Play Story"}
               </button>
             </div>
 
