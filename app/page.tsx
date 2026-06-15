@@ -31,6 +31,7 @@ export default function Home() {
   const { supported, speaking, speak, stop, repeat } = useSpeech();
   const { save } = useSavedStories();
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [phase, setPhase] = useState<Phase>("intro");
   const [loadingLine, setLoadingLine] = useState(LOADING_LINES[0]);
   const [story, setStory] = useState<Story | null>(null);
@@ -301,20 +302,22 @@ export default function Home() {
               </button>
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => {
-                    if (saved || !story) return;
-                    save({
+                  onClick={async () => {
+                    if (saved || saving || !story) return;
+                    setSaving(true);
+                    const ok = await save({
                       placeLabel: story.placeLabel,
                       spokenScript: story.spokenScript,
                       confidence: story.confidence,
                       sources: story.sources,
                     });
-                    setSaved(true);
+                    setSaving(false);
+                    setSaved(ok);
                   }}
-                  disabled={saved}
+                  disabled={saved || saving}
                   className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition disabled:opacity-80"
                 >
-                  {saved ? "♥  Saved" : "♡  Save"}
+                  {saved ? "♥  Saved" : saving ? "Saving…" : "♡  Save"}
                 </button>
                 <button
                   onClick={go}

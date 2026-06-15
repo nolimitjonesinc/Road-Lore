@@ -19,7 +19,7 @@ function formatDate(ts: number) {
 }
 
 export default function SavedPage() {
-  const { stories, remove } = useSavedStories();
+  const { stories, loading, remove } = useSavedStories();
   const { speaking, speak, stop } = useSpeech();
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -49,7 +49,11 @@ export default function SavedPage() {
           <span className="w-12" />
         </div>
 
-        {stories.length === 0 ? (
+        {loading ? (
+          <p className="text-center text-[var(--muted)] mt-12">
+            Loading your saved stories…
+          </p>
+        ) : stories.length === 0 ? (
           <div className="glass rounded-[28px] p-8 text-center mt-10">
             <div className="text-4xl mb-3">🗺️</div>
             <p className="text-[var(--cream)] font-bold mb-1">

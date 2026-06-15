@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export interface SavedSource {
   title: string;
@@ -16,68 +17,87 @@ export interface SavedStory {
   savedAt: number;
 }
 
-const KEY = "roadlore.saved.v1";
-
-function read(): SavedStory[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as SavedStory[]) : [];
-  } catch {
-    return [];
+// A stable per-device id so each phone sees its own saved list (until we add
+// real logins). Stored in the browser; the stories themselves live in Supabase.
+function deviceId(): string {
+  if (typeof window === "undefined") return "server";
+  const KEY = "roadlore.device";
+  let id = window.localStorage.getItem(KEY);
+  if (!id) {
+    id =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : String(Date.now()) + Math.random().toString(16).slice(2);
+    window.localStorage.setItem(KEY, id);
   }
+  return id;
 }
 
-function write(list: SavedStory[]) {
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(list));
-  } catch {
-    /* storage full or blocked — ignore */
-  }
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function rowToStory(row: any): SavedStory {
+  return {
+    id: row.id,
+    placeLabel: row.place_label,
+    spokenScript: row.spoken_script,
+    confidence: row.confidence || "",
+    sources: row.sources || [],
+    savedAt: row.created_at ? new Date(row.created_at).getTime() : Date.now(),
+  };
 }
 
-// Saved stories live in the phone's local storage: private, instant, offline.
+// Saved stories live in Supabase (table: saved_stories), scoped per device.
 export function useSavedStories() {
   const [stories, setStories] = useState<SavedStory[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setStories(read());
+  const load = useCallback(async () => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("saved_stories")
+      .select("*")
+      .eq("device_id", deviceId())
+      .order("created_at", { ascending: false });
+    if (!error && data) setStories(data.map(rowToStory));
+    setLoading(false);
   }, []);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
   const save = useCallback(
-    (s: Omit<SavedStory, "id" | "savedAt">): SavedStory => {
-      const item: SavedStory = {
-        ...s,
-        id:
-          typeof crypto !== "undefined" && "randomUUID" in crypto
-            ? crypto.randomUUID()
-            : String(Date.now()) + Math.random().toString(16).slice(2),
-        savedAt: Date.now(),
-      };
-      setStories((prev) => {
-        // Skip an exact duplicate (same place + same text).
-        const dup = prev.find(
-          (p) =>
-            p.placeLabel === item.placeLabel &&
-            p.spokenScript === item.spokenScript
-        );
-        if (dup) return prev;
-        const next = [item, ...prev];
-        write(next);
-        return next;
-      });
-      return item;
+    async (s: Omit<SavedStory, "id" | "savedAt">): Promise<boolean> => {
+      if (!supabase) return false;
+      const { data, error } = await supabase
+        .from("saved_stories")
+        .insert({
+          device_id: deviceId(),
+          place_label: s.placeLabel,
+          spoken_script: s.spokenScript,
+          confidence: s.confidence,
+          sources: s.sources,
+        })
+        .select()
+        .single();
+      if (error || !data) return false;
+      setStories((prev) => [rowToStory(data), ...prev]);
+      return true;
     },
     []
   );
 
-  const remove = useCallback((id: string) => {
-    setStories((prev) => {
-      const next = prev.filter((p) => p.id !== id);
-      write(next);
-      return next;
-    });
+  const remove = useCallback(async (id: string) => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from("saved_stories")
+      .delete()
+      .eq("id", id)
+      .eq("device_id", deviceId());
+    if (!error) setStories((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
-  return { stories, save, remove };
+  return { stories, loading, save, remove };
 }

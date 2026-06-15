@@ -1,7 +1,7 @@
 // Service worker — makes RoadLore installable, but always prefers the LATEST
-// page from the network so a redesign/deploy shows up immediately. The cache
-// is only a fallback for when you're offline.
-const SHELL = "roadlore-shell-v2";
+// page from the network so a deploy shows up immediately. Cache is only a
+// fallback for offline. Hardened so a failed fetch can never throw.
+const SHELL = "roadlore-shell-v3";
 const ASSETS = ["/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -33,20 +33,35 @@ self.addEventListener("fetch", (event) => {
     (req.headers.get("accept") || "").includes("text/html");
 
   if (isPageNav) {
-    // Network-first: always try to fetch the freshest page; fall back to cache
-    // only if the network is unavailable (offline).
     event.respondWith(
-      fetch(req)
-        .then((res) => {
+      (async () => {
+        try {
+          const res = await fetch(req);
           const copy = res.clone();
           caches.open(SHELL).then((c) => c.put("/", copy));
           return res;
-        })
-        .catch(() => caches.match("/").then((m) => m || caches.match(req)))
+        } catch {
+          return (
+            (await caches.match("/")) ||
+            (await caches.match(req)) ||
+            Response.error()
+          );
+        }
+      })()
     );
     return;
   }
 
-  // Static assets: cache-first is fine.
-  event.respondWith(caches.match(req).then((cached) => cached || fetch(req)));
+  // Static assets: cache-first, then network — never let a failure throw.
+  event.respondWith(
+    (async () => {
+      const cached = await caches.match(req);
+      if (cached) return cached;
+      try {
+        return await fetch(req);
+      } catch {
+        return Response.error();
+      }
+    })()
+  );
 });
