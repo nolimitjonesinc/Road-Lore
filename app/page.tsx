@@ -316,24 +316,18 @@ export default function Home() {
               )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="flex flex-col gap-3 mb-6">
               <button
-                onClick={repeat}
-                className="glass rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
+                onClick={speaking ? stop : repeat}
+                className="cta w-full text-xl font-extrabold py-5"
               >
-                ↻ Repeat
-              </button>
-              <button
-                onClick={stop}
-                className="glass rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
-              >
-                ◼ Stop
+                {speaking ? "⏸  Stop" : "▶  Play Story"}
               </button>
               <button
                 onClick={go}
-                className="cta rounded-2xl py-4 text-base font-extrabold"
+                className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
               >
-                ↺ Again
+                ↺  New Story
               </button>
             </div>
 
