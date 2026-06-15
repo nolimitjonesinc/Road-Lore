@@ -27,6 +27,19 @@ const LOADING_LINES = [
   "Turning the map into story time…",
 ];
 
+const VOICE_LOADING_LINES = [
+  "Warming up the mic…",
+  "Our narrator is clearing their throat…",
+  "Briefing the voice actor on your street…",
+  "Teaching someone to say your neighborhood…",
+  "Finding the perfect dramatic pause…",
+  "The narrator just spilled coffee, one sec…",
+  "Tuning the storyteller…",
+  "Getting the local accent just right…",
+  "Your road trip guide is almost ready…",
+  "Cuing the opening line…",
+];
+
 const LOC_KEY = "rl_loc_granted";
 const USED_KEY = "rl_used_articles";
 
@@ -52,6 +65,16 @@ export default function Home() {
   const [story, setStory] = useState<Story | null>(null);
   const [error, setError] = useState<string>("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [voiceLineIndex, setVoiceLineIndex] = useState(0);
+
+  useEffect(() => {
+    if (!audioLoading) return;
+    setVoiceLineIndex(0);
+    const id = setInterval(() => {
+      setVoiceLineIndex((i) => (i + 1) % VOICE_LOADING_LINES.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [audioLoading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -323,7 +346,7 @@ export default function Home() {
                         />
                       ))}
                     </span>
-                    Preparing voice…
+                    {VOICE_LOADING_LINES[voiceLineIndex]}
                     <span className="inline-flex gap-[3px] items-end h-5">
                       {[4, 3, 2, 1, 0].map((i) => (
                         <span
