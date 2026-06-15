@@ -27,6 +27,8 @@ const LOADING_LINES = [
   "Turning the map into story time…",
 ];
 
+const LOC_KEY = "rl_loc_granted";
+
 export default function Home() {
   const { supported, speaking, speak, stop, repeat } = useSpeech();
   const { save } = useSavedStories();
@@ -36,10 +38,19 @@ export default function Home() {
   const [loadingLine, setLoadingLine] = useState(LOADING_LINES[0]);
   const [story, setStory] = useState<Story | null>(null);
   const [error, setError] = useState<string>("");
+  const [sourcesOpen, setSourcesOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function check() {
+      // If the user has successfully loaded a story before, skip the intro.
+      try {
+        if (localStorage.getItem(LOC_KEY) === "1") {
+          if (!cancelled) setPhase("idle");
+          return;
+        }
+      } catch { /* localStorage unavailable */ }
+
       try {
         // @ts-ignore - permissions may be undefined on some browsers
         const status = await navigator.permissions?.query({
@@ -91,8 +102,11 @@ export default function Home() {
             setPhase("idle");
             return;
           }
+          // Remember that location was granted so we skip the intro next time.
+          try { localStorage.setItem(LOC_KEY, "1"); } catch { /* ignore */ }
           setStory(data);
           setSaved(false);
+          setSourcesOpen(false);
           setPhase("done");
           speak(data.spokenScript);
         } catch {
@@ -332,25 +346,39 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Sources — collapsed by default */}
             {story.sources.length > 0 && (
-              <div className="text-left px-1">
-                <p className="kicker text-[10px] text-[var(--muted)] mb-2">
-                  Real sources
-                </p>
-                <ul className="flex flex-wrap gap-2">
-                  {story.sources.map((s) => (
-                    <li key={s.url}>
-                      <a
-                        href={s.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block text-sm text-[var(--cream)] bg-white/5 border border-white/10 rounded-full px-3 py-1 hover:border-[var(--gold)]/40 transition"
-                      >
-                        {s.title}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+              <div className="text-left px-1 mb-4">
+                <button
+                  onClick={() => setSourcesOpen((o) => !o)}
+                  className="flex items-center gap-2 text-[var(--muted)] hover:text-[var(--cream)] transition text-sm"
+                >
+                  <span
+                    className="text-[10px] transition-transform duration-200"
+                    style={{ display: "inline-block", transform: sourcesOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                  >
+                    ▶
+                  </span>
+                  <span className="kicker text-[10px]">
+                    Real sources ({story.sources.length})
+                  </span>
+                </button>
+                {sourcesOpen && (
+                  <ul className="flex flex-wrap gap-2 mt-3">
+                    {story.sources.map((s) => (
+                      <li key={s.url}>
+                        <a
+                          href={s.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block text-sm text-[var(--cream)] bg-white/5 border border-white/10 rounded-full px-3 py-1 hover:border-[var(--gold)]/40 transition"
+                        >
+                          {s.title}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
 
