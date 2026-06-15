@@ -147,9 +147,9 @@ export default function Home() {
               Where are you?
             </h2>
             <p className="text-[var(--muted)] mb-8 leading-relaxed">
-              RoadLore reads you a quick story about wherever you&apos;re
-              standing. Tap below and your phone will ask to share your
-              location — just tap{" "}
+              RoadLore reads you a quick story about where you are right now.
+              Tap below and your phone will ask to share your location — just
+              tap{" "}
               <span className="font-semibold text-[var(--cream)]">Allow</span>.
             </p>
             <div className="ping-wrap">
