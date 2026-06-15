@@ -258,6 +258,16 @@ export default function Home() {
         {/* Result */}
         {phase === "done" && story && (
           <div className="w-full max-w-md rise">
+            {/* Play button first — visible without scrolling */}
+            <div className="flex flex-col gap-3 mb-6">
+              <button
+                onClick={speaking ? stop : repeat}
+                className="cta w-full text-xl font-extrabold py-5"
+              >
+                {speaking ? "⏸  Stop" : "▶  Play Story"}
+              </button>
+            </div>
+
             <div className="glass rounded-[28px] p-7 text-left mb-6">
               <p className="kicker text-[10px] text-[var(--gold)]/80 mb-2">
                 You are here
@@ -294,12 +304,6 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-3 mb-6">
-              <button
-                onClick={speaking ? stop : repeat}
-                className="cta w-full text-xl font-extrabold py-5"
-              >
-                {speaking ? "⏸  Stop" : "▶  Play Story"}
-              </button>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={async () => {
