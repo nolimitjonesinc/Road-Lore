@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { deleteCachedAudio } from "@/lib/audioCache";
 
 export interface SavedSource {
   title: string;
@@ -102,10 +101,7 @@ export function useSavedStories() {
       .delete()
       .eq("id", id)
       .eq("device_id", deviceId());
-    if (!error) {
-      setStories((prev) => prev.filter((p) => p.id !== id));
-      deleteCachedAudio(id).catch(() => {});
-    }
+    if (!error) setStories((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   return { stories, loading, save, remove };

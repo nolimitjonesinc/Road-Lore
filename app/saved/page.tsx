@@ -30,7 +30,7 @@ export default function SavedPage() {
       setPlayingId(null);
     } else {
       setPlayingId(id);
-      speak(text, id);
+      speak(text);
     }
   }
 
