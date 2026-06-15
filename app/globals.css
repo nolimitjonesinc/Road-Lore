@@ -303,11 +303,8 @@ body {
 .wordmark {
   font-family: var(--font-display), serif;
   letter-spacing: -0.03em;
-  background: linear-gradient(180deg, #fff5ee 0%, #ffcb80 55%, #ff7a3c 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 2px 30px rgba(255, 120, 60, 0.3);
+  color: #ffffff;
+  text-shadow: 0 2px 40px rgba(45, 202, 176, 0.3);
 }
 
 .kicker {
