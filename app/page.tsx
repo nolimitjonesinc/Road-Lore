@@ -28,6 +28,19 @@ const LOADING_LINES = [
 ];
 
 const LOC_KEY = "rl_loc_granted";
+const USED_KEY = "rl_used_articles";
+
+function getUsedArticles(): string[] {
+  try { return JSON.parse(localStorage.getItem(USED_KEY) || "[]"); } catch { return []; }
+}
+function saveUsedArticles(titles: string[]) {
+  try {
+    const existing = getUsedArticles();
+    const merged = [...new Set([...existing, ...titles])];
+    // Cap at 100 so it never grows unbounded
+    localStorage.setItem(USED_KEY, JSON.stringify(merged.slice(-100)));
+  } catch { /* ignore */ }
+}
 
 export default function Home() {
   const { supported, speaking, audioLoading, speak, stop, repeat } = useSpeech();
@@ -93,6 +106,7 @@ export default function Home() {
             body: JSON.stringify({
               latitude: pos.coords.latitude,
               longitude: pos.coords.longitude,
+              usedArticles: getUsedArticles(),
             }),
           });
           setLoadingLine(LOADING_LINES[2]);
@@ -104,6 +118,8 @@ export default function Home() {
           }
           // Remember that location was granted so we skip the intro next time.
           try { localStorage.setItem(LOC_KEY, "1"); } catch { /* ignore */ }
+          // Track which articles were used so next tap gets different topics.
+          if (data.sources?.length) saveUsedArticles(data.sources.map((s: {title: string}) => s.title));
           setStory(data);
           setSaved(false);
           setSourcesOpen(false);
@@ -197,7 +213,7 @@ export default function Home() {
               onClick={go}
               className="cta relative z-10 w-full text-2xl sm:text-3xl font-extrabold py-8 px-6"
             >
-              Tell Me Where I Am
+              Give Me the Lore
             </button>
             {error && (
               <p className="mt-6 text-base text-rose-300">{error}</p>

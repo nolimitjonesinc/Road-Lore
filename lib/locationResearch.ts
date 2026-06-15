@@ -2,10 +2,10 @@
 // Turns raw GPS coordinates into REAL nearby context using only free,
 // keyless public services:
 //   - OpenStreetMap (Nominatim) for reverse geocoding the place name
-//   - Wikipedia for nearby landmark articles and their summaries
+//   - Wikipedia for nearby landmark articles and their FULL intro sections
+//   - OpenStreetMap Overpass for physical POIs
 //
 // No API keys. No paid web search. No mock data.
-// If the real services can't give us enough to work with, we say so honestly.
 
 const UA =
   "RoadLore/1.0 (https://github.com/nolimitjonesinc/Road-Lore; contact@nolimitjones.com)";
@@ -24,8 +24,8 @@ export interface OsmPoi {
 }
 
 export interface LocationContext {
-  placeLabel: string; // e.g. "Mar Vista, Los Angeles, California"
-  region: string; // broader area for fallback color
+  placeLabel: string;
+  region: string;
   sources: NearbySource[];
   osmPois: OsmPoi[];
 }
@@ -33,12 +33,9 @@ export interface LocationContext {
 async function fetchJson(url: string): Promise<any> {
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "application/json" },
-    // Never cache — location is always "right now"
     cache: "no-store",
   });
-  if (!res.ok) {
-    throw new Error(`Upstream service returned ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`Upstream service returned ${res.status}`);
   return res.json();
 }
 
@@ -52,21 +49,9 @@ async function reverseGeocode(
 
   const a = data.address || {};
   const locality =
-    a.neighbourhood ||
-    a.suburb ||
-    a.city ||
-    a.town ||
-    a.village ||
-    a.hamlet ||
-    a.county;
-  const region = [a.county || a.city, a.state, a.country]
-    .filter(Boolean)
-    .join(", ");
-
-  const placeLabel =
-    [locality, a.state].filter(Boolean).join(", ") ||
-    data.display_name ||
-    region;
+    a.neighbourhood || a.suburb || a.city || a.town || a.village || a.hamlet || a.county;
+  const region = [a.county || a.city, a.state, a.country].filter(Boolean).join(", ");
+  const placeLabel = [locality, a.state].filter(Boolean).join(", ") || data.display_name || region;
 
   return { placeLabel, region };
 }
@@ -80,30 +65,27 @@ async function nearbyArticles(
     `https://en.wikipedia.org/w/api.php?action=query&list=geosearch` +
     `&gscoord=${lat}%7C${lon}&gsradius=10000&gslimit=25&format=json`;
   const data = await fetchJson(url);
-  const hits = data?.query?.geosearch || [];
-  // Shuffle the results to get variety each tap
-  const shuffled = hits
-    .map((h: any) => ({ title: h.title, dist: h.dist }))
-    .sort(() => Math.random() - 0.5);
-  return shuffled;
+  return (data?.query?.geosearch || []).map((h: any) => ({ title: h.title, dist: h.dist }));
 }
 
-// Step 3: pull a short real summary for an article
-async function articleSummary(
+// Step 3: pull the FULL intro section of an article (up to 2500 chars, plain text).
+// This is far richer than the summary API — actual history, context, and stories.
+async function articleFullIntro(
   title: string
 ): Promise<{ summary: string; url: string } | null> {
   try {
-    const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(
-      title
-    )}`;
+    const url =
+      `https://en.wikipedia.org/w/api.php?action=query&prop=extracts` +
+      `&exintro=true&explaintext=true&exchars=2500` +
+      `&titles=${encodeURIComponent(title)}&format=json&redirects=1`;
     const data = await fetchJson(url);
-    const extract: string = data?.extract || "";
-    if (!extract) return null;
-    // Skip disambiguation / list pages — they make for bad stories
-    if (data?.type && data.type !== "standard") return null;
+    const pages = data?.query?.pages;
+    if (!pages) return null;
+    const page = Object.values(pages)[0] as any;
+    if (!page || page.missing !== undefined || !page.extract?.trim()) return null;
     return {
-      summary: extract,
-      url: data?.content_urls?.desktop?.page || `https://en.wikipedia.org/wiki/${encodeURIComponent(title)}`,
+      summary: page.extract.trim(),
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`,
     };
   } catch {
     return null;
@@ -134,24 +116,16 @@ async function fetchOverpass(query: string): Promise<any> {
   return null;
 }
 
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 6371000; // Earth's radius in meters
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000;
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
   const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
   const a =
     Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 async function nearbyOsmPois(lat: number, lon: number): Promise<OsmPoi[]> {
@@ -179,7 +153,6 @@ out center body 20;
     const name = tags.name;
     if (!name) continue;
 
-    // Determine POI type from tags
     let type = "place";
     if (tags.historic) type = tags.historic === "yes" ? "historic site" : tags.historic;
     else if (tags.tourism) type = tags.tourism;
@@ -187,44 +160,50 @@ out center body 20;
     else if (tags.amenity === "place_of_worship") type = "place of worship";
     else if (tags.man_made) type = tags.man_made;
 
-    // Get coordinates (use center for ways)
     const poiLat = elem.center?.lat || elem.lat;
     const poiLon = elem.center?.lon || elem.lon;
     if (!poiLat || !poiLon) continue;
 
-    const distance = Math.round(calculateDistance(lat, lon, poiLat, poiLon));
-
-    pois.push({ name, type, distanceMeters: distance });
+    pois.push({ name, type, distanceMeters: Math.round(calculateDistance(lat, lon, poiLat, poiLon)) });
   }
 
-  // Sort by distance
   return pois.sort((a, b) => a.distanceMeters - b.distanceMeters);
 }
 
 // Orchestrates all steps into one real context object.
+// usedArticles: titles already used in previous taps — skip them for variety.
+// If skipping leaves fewer than 3 candidates, we ignore the filter (better than no content).
 export async function researchLocation(
   lat: number,
-  lon: number
+  lon: number,
+  usedArticles: string[] = []
 ): Promise<LocationContext> {
-  const [{ placeLabel, region }, articles, osmPois] = await Promise.all([
+  const [{ placeLabel, region }, allArticles, osmPois] = await Promise.all([
     reverseGeocode(lat, lon),
     nearbyArticles(lat, lon),
-    nearbyOsmPois(lat, lon).catch(() => []), // Silently skip on failure
+    nearbyOsmPois(lat, lon).catch(() => []),
   ]);
 
-  // Pull summaries for 6 randomly selected articles
-  const top = articles.slice(0, 6);
+  // Shuffle for randomness, then filter out previously used articles
+  const shuffled = [...allArticles].sort(() => Math.random() - 0.5);
+  const usedSet = new Set(usedArticles.map((t) => t.toLowerCase()));
+  const fresh = shuffled.filter((a) => !usedSet.has(a.title.toLowerCase()));
+
+  // Use fresh articles if we have enough; otherwise fall back to full shuffled pool
+  const candidates = fresh.length >= 3 ? fresh : shuffled;
+
+  // Pull full intro sections for the top 4 candidates (richer than summary API)
+  const top = candidates.slice(0, 4);
   const summaries = await Promise.all(
     top.map(async (a) => {
-      const s = await articleSummary(a.title);
+      const s = await articleFullIntro(a.title);
       if (!s) return null;
-      const source: NearbySource = {
+      return {
         title: a.title,
         distanceMeters: Math.round(a.dist),
         summary: s.summary,
         url: s.url,
-      };
-      return source;
+      } as NearbySource;
     })
   );
 

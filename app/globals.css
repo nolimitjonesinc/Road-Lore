@@ -126,32 +126,33 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 42%;
+  height: 62%;
   background: linear-gradient(180deg, #241a33 0%, #120c1d 100%);
-  clip-path: polygon(38% 0, 62% 0, 100% 100%, 0% 100%);
+  clip-path: polygon(46% 0, 54% 0, 100% 100%, 0% 100%);
   opacity: 0.96;
 }
 
 .road::before {
-  /* soft sheen where road meets horizon */
+  /* fade road top into the sunset horizon */
   content: "";
   position: absolute;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 30%;
-  height: 30px;
-  background: radial-gradient(
-    ellipse at center top,
-    rgba(255, 170, 90, 0.5),
-    transparent 70%
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(
+    180deg,
+    rgba(180, 70, 40, 0.95) 0%,
+    rgba(200, 85, 47, 0.7) 25%,
+    rgba(160, 60, 60, 0.3) 60%,
+    transparent 100%
   );
 }
 
 .road-line {
   position: absolute;
   inset: 0;
-  clip-path: polygon(49.2% 0, 50.8% 0, 57% 100%, 43% 100%);
+  clip-path: polygon(49.5% 0, 50.5% 0, 57% 100%, 43% 100%);
   background: repeating-linear-gradient(
     180deg,
     var(--gold) 0 26px,
