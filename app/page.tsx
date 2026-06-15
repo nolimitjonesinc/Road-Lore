@@ -115,7 +115,7 @@ export default function Home() {
   return (
     <>
       <Scene />
-      <main className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center">
+      <main className="relative z-10 min-h-[100dvh] flex flex-col items-center justify-center px-6 py-12 text-center">
         {/* Brand */}
         <p
           className="kicker text-[11px] text-[var(--gold)]/80 mb-4 rise"
