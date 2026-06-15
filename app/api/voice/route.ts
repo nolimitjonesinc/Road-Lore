@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // its built-in voice — the app keeps working, just less cinematic.
 
 const MODEL = "gemini-2.5-flash-preview-tts";
-const VOICE = "Puck"; // upbeat, playful — fits the sassy tour-guide tone
+const VOICE = "Aoede"; // breezy — testing alternative to Puck
 
 function buildWavHeader(
   pcmByteLength: number,
