@@ -125,17 +125,19 @@ export default function Home() {
           setSaving(true);
           setSourcesOpen(false);
           setPhase("done");
-          // Auto-save the story text to Supabase, then narrate it — caching the
-          // audio under the saved row's id so it replays instantly and offline.
-          const savedStory = await save({
+          // Narrate immediately — speak() must fire before any await so it
+          // stays within the browser's user-gesture window and autoplay works.
+          speak(data.spokenScript);
+          // Save in the background; don't block narration on it.
+          save({
             placeLabel: data.placeLabel,
             spokenScript: data.spokenScript,
             confidence: data.confidence,
             sources: data.sources,
-          });
-          setSaving(false);
-          setSaved(!!savedStory);
-          speak(data.spokenScript, savedStory?.id);
+          }).then((savedStory) => {
+            setSaving(false);
+            setSaved(!!savedStory);
+          }).catch(() => setSaving(false));
         } catch {
           setError("Something went sideways. Try again.");
           setPhase("idle");
