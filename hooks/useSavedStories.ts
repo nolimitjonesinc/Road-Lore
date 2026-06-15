@@ -56,7 +56,7 @@ export function useSavedStories() {
       return;
     }
     const { data, error } = await supabase
-      .from("saved_stories")
+      .from("roadlore_saved_stories")
       .select("*")
       .eq("device_id", deviceId())
       .order("created_at", { ascending: false });
@@ -72,7 +72,7 @@ export function useSavedStories() {
     async (s: Omit<SavedStory, "id" | "savedAt">): Promise<boolean> => {
       if (!supabase) return false;
       const { data, error } = await supabase
-        .from("saved_stories")
+        .from("roadlore_saved_stories")
         .insert({
           device_id: deviceId(),
           place_label: s.placeLabel,
@@ -92,7 +92,7 @@ export function useSavedStories() {
   const remove = useCallback(async (id: string) => {
     if (!supabase) return;
     const { error } = await supabase
-      .from("saved_stories")
+      .from("roadlore_saved_stories")
       .delete()
       .eq("id", id)
       .eq("device_id", deviceId());
