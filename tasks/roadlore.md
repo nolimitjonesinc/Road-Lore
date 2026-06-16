@@ -33,6 +33,8 @@
 - [x] "Tell Me More About Here" button — another story about the SAME spot (locks coords, fresh angle, skips already-used Wikipedia topics) even after the user has driven past
 - [x] Story modes / genre picker ("Pick a vibe": Surprise / History / Weird & Funny / Spooky / Famous People / Before the Town) — sticky choice sent to the story route as `mode`
 - [x] "Explore nearby" picker — distance dropdown (0.5/1/5/10/25 mi) + real named neighborhoods & cities from OpenStreetMap; tap one to hear its story (new /api/nearby route)
+- [x] FIX: make neighborhood + vibe picks actually change the story — research now sorts articles NEAREST-first (was shuffling a 10km blob, so every pin got the same regional mush); chosen neighborhood name overrides the label; POIs filtered to within 1.2km
+- [x] FIX: rewrote narrator personality to kill AI-speak (banned "nestled/bustling/hidden gem" etc., hook-first openers, "go deep on ONE thread" so vibes genuinely diverge instead of same facts reworded)
 - [ ] Drive-safety mode (audio-first when moving)
 - [ ] Optional: swap writer to Gemini free tier for $0 running cost
 - [ ] Optional: paste-a-Google-Maps-link fallback when GPS is blocked

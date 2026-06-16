@@ -15,13 +15,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let lat: number, lon: number, usedArticles: string[], mode: string | undefined;
+  let lat: number, lon: number, usedArticles: string[], mode: string | undefined, placeName: string | undefined;
   try {
     const body = await req.json();
     lat = Number(body.latitude);
     lon = Number(body.longitude);
     usedArticles = Array.isArray(body.usedArticles) ? body.usedArticles.map(String) : [];
     mode = typeof body.mode === "string" ? body.mode : undefined;
+    placeName = typeof body.placeName === "string" && body.placeName.trim() ? body.placeName.trim() : undefined;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
 
   let ctx;
   try {
-    ctx = await researchLocation(lat, lon, usedArticles);
+    ctx = await researchLocation(lat, lon, usedArticles, placeName);
   } catch {
     return NextResponse.json(
       { error: "Couldn't reach the map services just now. Give it another tap in a sec." },

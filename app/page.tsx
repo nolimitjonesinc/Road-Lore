@@ -101,6 +101,9 @@ export default function Home() {
   // Coordinates the current story is about — lets "Tell Me More" stay on this
   // spot even after the user has driven past it.
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  // Name of the place the current story is about — set when the user picks a
+  // nearby neighborhood, so "Tell Me More" stays locked to that exact place.
+  const [anchorName, setAnchorName] = useState<string | null>(null);
   // Chosen story vibe (genre). "surprise" = random angle. Sticky across stories.
   const [selectedMode, setSelectedMode] = useState("surprise");
   // "Explore nearby" picker state.
@@ -150,7 +153,12 @@ export default function Home() {
 
   // Fetch + narrate a story for a given spot. Shared by "Give Me the Lore"
   // (fresh GPS) and "Tell Me More" (locked to the previous story's spot).
-  async function fetchStory(latitude: number, longitude: number, mode?: string) {
+  async function fetchStory(
+    latitude: number,
+    longitude: number,
+    mode?: string,
+    placeName?: string
+  ) {
     try {
       setLoadingLine(LOADING_LINES[1]);
       const res = await fetch("/api/story", {
@@ -161,6 +169,7 @@ export default function Home() {
           longitude,
           usedArticles: getUsedArticles(),
           mode: mode ?? selectedMode,
+          placeName: placeName ?? undefined,
         }),
       });
       setLoadingLine(LOADING_LINES[2]);
@@ -220,8 +229,10 @@ export default function Home() {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // Lock this spot so "Tell Me More" can return to it later.
+        // Lock this spot so "Tell Me More" can return to it later. No anchor
+        // name — let the server reverse-geocode wherever the GPS landed.
         setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setAnchorName(null);
         fetchStory(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
@@ -245,20 +256,21 @@ export default function Home() {
     stop();
     setPhase("loading");
     setLoadingLine(LOADING_LINES[0]);
-    fetchStory(coords.lat, coords.lon);
+    fetchStory(coords.lat, coords.lon, undefined, anchorName ?? undefined);
   }
 
-  // Tell a story about a chosen nearby place. Re-locks coords to it so further
-  // "Tell Me More" / "Explore nearby" picks travel along from there.
+  // Tell a story about a chosen nearby place. Re-locks coords AND the name to it
+  // so further "Tell Me More" picks stay on that exact place.
   function goToPlace(p: NearbyPlace) {
     setError("");
     setStory(null);
     stop();
     setCoords({ lat: p.lat, lon: p.lon });
+    setAnchorName(p.name);
     setExploreOpen(false);
     setPhase("loading");
     setLoadingLine(LOADING_LINES[0]);
-    fetchStory(p.lat, p.lon);
+    fetchStory(p.lat, p.lon, undefined, p.name);
   }
 
   // Load nearby named places whenever the explorer is open and the spot or

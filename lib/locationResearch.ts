@@ -231,12 +231,15 @@ out center body 20;
 }
 
 // Orchestrates all steps into one real context object.
-// usedArticles: titles already used in previous taps — skip them for variety.
-// If skipping leaves fewer than 3 candidates, we ignore the filter (better than no content).
+// usedArticles: titles already used in previous taps — skip them so repeat taps
+//   dig progressively deeper instead of repeating.
+// placeNameOverride: when the user picked a specific nearby neighborhood/city,
+//   use that exact name as the label so the story is about THAT place.
 export async function researchLocation(
   lat: number,
   lon: number,
-  usedArticles: string[] = []
+  usedArticles: string[] = [],
+  placeNameOverride?: string
 ): Promise<LocationContext> {
   const [{ placeLabel, region }, allArticles, osmPois] = await Promise.all([
     reverseGeocode(lat, lon),
@@ -244,15 +247,18 @@ export async function researchLocation(
     nearbyOsmPois(lat, lon).catch(() => []),
   ]);
 
-  // Shuffle for randomness, then filter out previously used articles
-  const shuffled = [...allArticles].sort(() => Math.random() - 0.5);
+  // Sort NEAREST first — this is the fix that makes each pin specific. Dropping
+  // the pin on Venice vs. Mar Vista now pulls Venice's vs. Mar Vista's closest
+  // landmarks, instead of a shuffled grab-bag from a 10km blob.
+  const byDistance = [...allArticles].sort((a, b) => a.dist - b.dist);
   const usedSet = new Set(usedArticles.map((t) => t.toLowerCase()));
-  const fresh = shuffled.filter((a) => !usedSet.has(a.title.toLowerCase()));
+  const fresh = byDistance.filter((a) => !usedSet.has(a.title.toLowerCase()));
 
-  // Use fresh articles if we have enough; otherwise fall back to full shuffled pool
-  const candidates = fresh.length >= 3 ? fresh : shuffled;
+  // Prefer fresh (unused) articles; fall back to the full nearest-first list if
+  // skipping leaves too few. Repeat taps thus walk outward from the pin.
+  const candidates = fresh.length >= 3 ? fresh : byDistance;
 
-  // Pull full intro sections for the top 4 candidates (richer than summary API)
+  // Pull full intro sections for the 4 closest candidates (richer than summary API)
   const top = candidates.slice(0, 4);
   const summaries = await Promise.all(
     top.map(async (a) => {
@@ -269,5 +275,11 @@ export async function researchLocation(
 
   const sources = summaries.filter((s): s is NearbySource => s !== null);
 
-  return { placeLabel, region, sources, osmPois };
+  // Keep only POIs genuinely close to the pin (within 1.2km) so a neighborhood
+  // story doesn't get peppered with spots from the next town over.
+  const closePois = osmPois.filter((p) => p.distanceMeters <= 1200);
+
+  const label = placeNameOverride?.trim() || placeLabel;
+
+  return { placeLabel: label, region, sources, osmPois: closePois };
 }
