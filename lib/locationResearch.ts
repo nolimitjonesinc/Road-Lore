@@ -128,6 +128,66 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+export interface NearbyPlace {
+  name: string;
+  type: string; // city | town | suburb | neighbourhood | quarter | village
+  distanceMeters: number;
+  lat: number;
+  lon: number;
+}
+
+// Find real named neighborhoods, suburbs, towns and cities around a point.
+// Used by the "Explore nearby" picker so the user can hear a story about a
+// specific nearby place instead of only their exact spot.
+export async function nearbyPlaces(
+  lat: number,
+  lon: number,
+  radiusMeters: number
+): Promise<NearbyPlace[]> {
+  const r = Math.min(Math.max(Math.round(radiusMeters), 500), 50000);
+  const query = `
+[out:json][timeout:15];
+(
+  node["place"~"^(city|town|suburb|neighbourhood|quarter|village)$"]["name"](around:${r},${lat},${lon});
+);
+out body 60;
+  `.trim();
+
+  const data = await fetchOverpass(query);
+  if (!data?.elements) return [];
+
+  // Rank place types so cities/towns sort above tiny quarters at equal distance.
+  const rank: Record<string, number> = {
+    city: 0, town: 1, suburb: 2, neighbourhood: 3, quarter: 4, village: 5,
+  };
+
+  const seen = new Set<string>();
+  const places: NearbyPlace[] = [];
+  for (const el of data.elements) {
+    const name = el.tags?.name;
+    if (!name || el.lat == null || el.lon == null) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    places.push({
+      name,
+      type: el.tags.place,
+      distanceMeters: Math.round(calculateDistance(lat, lon, el.lat, el.lon)),
+      lat: el.lat,
+      lon: el.lon,
+    });
+  }
+
+  // Skip anything basically on top of the user (their own spot), then sort by
+  // distance, breaking ties by place importance.
+  return places
+    .filter((p) => p.distanceMeters > 150)
+    .sort((a, b) =>
+      a.distanceMeters - b.distanceMeters ||
+      (rank[a.type] ?? 9) - (rank[b.type] ?? 9)
+    );
+}
+
 async function nearbyOsmPois(lat: number, lon: number): Promise<OsmPoi[]> {
   const query = `
 [out:json][timeout:10];

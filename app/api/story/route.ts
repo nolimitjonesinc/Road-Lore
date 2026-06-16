@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { researchLocation } from "@/lib/locationResearch";
-import { SYSTEM_PROMPT, buildUserMessage, pickStoryAngle } from "@/lib/storyPrompt";
+import { SYSTEM_PROMPT, buildUserMessage, angleForMode } from "@/lib/storyPrompt";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,12 +15,13 @@ export async function POST(req: Request) {
     );
   }
 
-  let lat: number, lon: number, usedArticles: string[];
+  let lat: number, lon: number, usedArticles: string[], mode: string | undefined;
   try {
     const body = await req.json();
     lat = Number(body.latitude);
     lon = Number(body.longitude);
     usedArticles = Array.isArray(body.usedArticles) ? body.usedArticles.map(String) : [];
+    mode = typeof body.mode === "string" ? body.mode : undefined;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const angle = pickStoryAngle();
+  const angle = angleForMode(mode);
 
   const anthropic = new Anthropic({ apiKey });
   let spokenScript = "";

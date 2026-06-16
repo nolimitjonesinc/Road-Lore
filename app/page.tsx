@@ -5,6 +5,18 @@ import { useEffect, useState } from "react";
 import Scene from "./scene";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useSavedStories } from "@/hooks/useSavedStories";
+import { STORY_MODES } from "@/lib/storyPrompt";
+
+interface NearbyPlace {
+  name: string;
+  type: string;
+  distanceMeters: number;
+  lat: number;
+  lon: number;
+}
+
+const DISTANCE_OPTIONS = [0.5, 1, 5, 10, 25]; // miles
+const MILES_TO_METERS = 1609.34;
 
 interface Source {
   title: string;
@@ -89,6 +101,13 @@ export default function Home() {
   // Coordinates the current story is about — lets "Tell Me More" stay on this
   // spot even after the user has driven past it.
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
+  // Chosen story vibe (genre). "surprise" = random angle. Sticky across stories.
+  const [selectedMode, setSelectedMode] = useState("surprise");
+  // "Explore nearby" picker state.
+  const [exploreOpen, setExploreOpen] = useState(false);
+  const [radiusMi, setRadiusMi] = useState(5);
+  const [places, setPlaces] = useState<NearbyPlace[]>([]);
+  const [placesLoading, setPlacesLoading] = useState(false);
 
   useEffect(() => {
     if (!audioLoading) return;
@@ -131,7 +150,7 @@ export default function Home() {
 
   // Fetch + narrate a story for a given spot. Shared by "Give Me the Lore"
   // (fresh GPS) and "Tell Me More" (locked to the previous story's spot).
-  async function fetchStory(latitude: number, longitude: number) {
+  async function fetchStory(latitude: number, longitude: number, mode?: string) {
     try {
       setLoadingLine(LOADING_LINES[1]);
       const res = await fetch("/api/story", {
@@ -141,6 +160,7 @@ export default function Home() {
           latitude,
           longitude,
           usedArticles: getUsedArticles(),
+          mode: mode ?? selectedMode,
         }),
       });
       setLoadingLine(LOADING_LINES[2]);
@@ -216,8 +236,8 @@ export default function Home() {
     );
   }
 
-  // Another story about the SAME spot — fresh angle, skips already-used topics.
-  // No new GPS read, so it stays on the place even if the user has driven on.
+  // Another story about the SAME spot — uses the chosen vibe, skips already-used
+  // topics. No new GPS read, so it stays on the place even after driving on.
   function tellMeMore() {
     if (!coords) { go(); return; }
     setError("");
@@ -227,6 +247,50 @@ export default function Home() {
     setLoadingLine(LOADING_LINES[0]);
     fetchStory(coords.lat, coords.lon);
   }
+
+  // Tell a story about a chosen nearby place. Re-locks coords to it so further
+  // "Tell Me More" / "Explore nearby" picks travel along from there.
+  function goToPlace(p: NearbyPlace) {
+    setError("");
+    setStory(null);
+    stop();
+    setCoords({ lat: p.lat, lon: p.lon });
+    setExploreOpen(false);
+    setPhase("loading");
+    setLoadingLine(LOADING_LINES[0]);
+    fetchStory(p.lat, p.lon);
+  }
+
+  // Load nearby named places whenever the explorer is open and the spot or
+  // radius changes. Overpass is free and keyless, so this is cheap.
+  useEffect(() => {
+    if (!exploreOpen || !coords) return;
+    let cancelled = false;
+    setPlacesLoading(true);
+    setPlaces([]);
+    fetch("/api/nearby", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        latitude: coords.lat,
+        longitude: coords.lon,
+        radiusMeters: Math.round(radiusMi * MILES_TO_METERS),
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setPlaces(data.places || []);
+      })
+      .catch(() => {
+        if (!cancelled) setPlaces([]);
+      })
+      .finally(() => {
+        if (!cancelled) setPlacesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [exploreOpen, radiusMi, coords]);
 
   return (
     <>
@@ -450,6 +514,28 @@ export default function Home() {
               )}
             </div>
 
+            {/* Pick a vibe for the next story */}
+            <div className="mb-5 text-left">
+              <p className="kicker text-[10px] text-[var(--gold)]/80 mb-3">
+                Pick a vibe
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {STORY_MODES.map((m) => (
+                  <button
+                    key={m.key}
+                    onClick={() => setSelectedMode(m.key)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold border transition ${
+                      selectedMode === m.key
+                        ? "bg-[var(--gold)] text-[#2a1206] border-[var(--gold)]"
+                        : "glass text-[var(--cream)] border-white/10 hover:border-[var(--gold)]/40"
+                    }`}
+                  >
+                    {m.emoji} {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-col gap-3 mb-6">
               <button
                 onClick={tellMeMore}
@@ -457,6 +543,66 @@ export default function Home() {
               >
                 ✨  Tell Me More About Here
               </button>
+
+              {/* Explore nearby — distance picker + named neighborhoods/cities */}
+              <div className="glass rounded-2xl px-4 py-3">
+                <button
+                  onClick={() => setExploreOpen((o) => !o)}
+                  className="flex items-center justify-between w-full text-[var(--cream)]"
+                >
+                  <span className="flex items-center gap-2 font-bold text-base">
+                    🧭 Explore nearby
+                  </span>
+                  <span
+                    className="text-[10px] transition-transform duration-200"
+                    style={{ display: "inline-block", transform: exploreOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                  >
+                    ▶
+                  </span>
+                </button>
+
+                {exploreOpen && (
+                  <div className="mt-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-sm text-[var(--muted)]">Within</span>
+                      <select
+                        value={radiusMi}
+                        onChange={(e) => setRadiusMi(Number(e.target.value))}
+                        className="bg-[var(--navy)] text-[var(--cream)] border border-white/15 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:border-[var(--gold)]/50"
+                      >
+                        {DISTANCE_OPTIONS.map((d) => (
+                          <option key={d} value={d}>{d} {d === 1 ? "mile" : "miles"}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {placesLoading ? (
+                      <p className="text-sm text-[var(--muted)] py-2">Finding nearby spots…</p>
+                    ) : places.length === 0 ? (
+                      <p className="text-sm text-[var(--muted)] py-2">
+                        No named neighborhoods found out here — try a wider distance.
+                      </p>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {places.map((p) => (
+                          <li key={`${p.name}-${p.lat}`}>
+                            <button
+                              onClick={() => goToPlace(p)}
+                              className="w-full rounded-xl px-4 py-3 flex items-center justify-between bg-white/5 border border-white/10 hover:border-[var(--gold)]/40 transition text-left"
+                            >
+                              <span className="font-semibold text-[var(--cream)]">{p.name}</span>
+                              <span className="text-xs text-[var(--muted)] whitespace-nowrap ml-3">
+                                {(p.distanceMeters / MILES_TO_METERS).toFixed(1)} mi · {p.type}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div
                   className="glass w-full rounded-2xl py-4 text-base font-bold flex items-center justify-center text-center select-none"

@@ -37,6 +37,41 @@ export function pickStoryAngle(): string {
   return STORY_ANGLES[Math.floor(Math.random() * STORY_ANGLES.length)];
 }
 
+// User-pickable story vibes shown as buttons. "surprise" = random angle.
+export interface StoryMode {
+  key: string;
+  label: string;
+  emoji: string;
+}
+
+export const STORY_MODES: StoryMode[] = [
+  { key: "surprise", label: "Surprise Me", emoji: "🎲" },
+  { key: "history", label: "History", emoji: "🏛️" },
+  { key: "weird", label: "Weird & Funny", emoji: "😄" },
+  { key: "spooky", label: "Spooky", emoji: "🪦" },
+  { key: "famous", label: "Famous People", emoji: "🎩" },
+  { key: "nature", label: "Before the Town", emoji: "🌲" },
+];
+
+const MODE_ANGLES: Record<string, string> = {
+  history:
+    "Tell the story of how this place came to be — who built it, when, and why it grew the way it did.",
+  weird:
+    "Lead with the weirdest, most surprising, or little-known fact about this area.",
+  spooky:
+    "Tell it like a ghost story — what haunts, lingers, or feels eerie about this place?",
+  famous:
+    "Focus on the famous and almost-famous: who passed through, who grew up here, who left their mark?",
+  nature:
+    "Go deep on the natural history of this land — what was here before the buildings?",
+};
+
+// Resolve a user-picked mode into an angle. Unknown / "surprise" → random.
+export function angleForMode(mode?: string): string {
+  if (mode && MODE_ANGLES[mode]) return MODE_ANGLES[mode];
+  return pickStoryAngle();
+}
+
 export function buildUserMessage(ctx: LocationContext, angle: string): string {
   const lines: string[] = [];
   lines.push(`PLACE: ${ctx.placeLabel}`);
