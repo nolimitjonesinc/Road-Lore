@@ -28,16 +28,36 @@ const LOADING_LINES = [
 ];
 
 const VOICE_LOADING_LINES = [
-  "Warming up the mic…",
-  "Our narrator is clearing their throat…",
-  "Briefing the voice actor on your street…",
-  "Teaching someone to say your neighborhood…",
-  "Finding the perfect dramatic pause…",
-  "The narrator just spilled coffee, one sec…",
-  "Tuning the storyteller…",
-  "Getting the local accent just right…",
-  "Your road trip guide is almost ready…",
-  "Cuing the opening line…",
+  "Dusting off the history books...",
+  "Bribing the local squirrels for gossip...",
+  "Convincing the narrator to leave their trailer...",
+  "Checking if anything interesting ever happened here...",
+  "Interviewing a guy who \"swears he was there...\"",
+  "Polishing our best fun facts...",
+  "Digging through decades of local drama...",
+  "Looking for the weirdest story first...",
+  "Translating boring history into something worth hearing...",
+  "Waking up the town historian...",
+  "Asking the ghosts for comment...",
+  "Teaching the narrator how to pronounce this place...",
+  "Making sure we don't accidentally insult the locals...",
+  "Finding the juicy version of the story...",
+  "Our tour guide took the scenic route...",
+  "Feeding the storyteller coffee...",
+  "Looking for the scandal they left off the plaque...",
+  "Dusting off the roadside legend...",
+  "Checking whether this place is haunted...",
+  "Looking for the \"you won't believe this\" part...",
+  "The narrator is putting on their adventure pants...",
+  "Rehearsing our dramatic gasp...",
+  "Stretching our storytelling muscles...",
+  "Searching for historical tea...",
+  "Negotiating with the local pigeons for insider information...",
+  "Making this sound way cooler than your history teacher did...",
+  "Loading fun facts and questionable legends...",
+  "Waiting for the banjo solo to finish...",
+  "Summoning your extremely enthusiastic tour guide...",
+  "Buckle up—your roadside storyteller is grabbing the mic.",
 ];
 
 const LOC_KEY = "rl_loc_granted";
@@ -66,6 +86,9 @@ export default function Home() {
   const [error, setError] = useState<string>("");
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [voiceLineIndex, setVoiceLineIndex] = useState(0);
+  // Coordinates the current story is about — lets "Tell Me More" stay on this
+  // spot even after the user has driven past it.
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
 
   useEffect(() => {
     if (!audioLoading) return;
@@ -106,6 +129,62 @@ export default function Home() {
     };
   }, []);
 
+  // Fetch + narrate a story for a given spot. Shared by "Give Me the Lore"
+  // (fresh GPS) and "Tell Me More" (locked to the previous story's spot).
+  async function fetchStory(latitude: number, longitude: number) {
+    try {
+      setLoadingLine(LOADING_LINES[1]);
+      const res = await fetch("/api/story", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          latitude,
+          longitude,
+          usedArticles: getUsedArticles(),
+        }),
+      });
+      setLoadingLine(LOADING_LINES[2]);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Something went sideways. Try again.");
+        setPhase("idle");
+        return;
+      }
+      // Remember that location was granted so we skip the intro next time.
+      try { localStorage.setItem(LOC_KEY, "1"); } catch { /* ignore */ }
+      // Track which articles were used so the next story gets different topics.
+      if (data.sources?.length) saveUsedArticles(data.sources.map((s: {title: string}) => s.title));
+      setStory(data);
+      setSaved(false);
+      setSaving(true);
+      setSourcesOpen(false);
+      setPhase("done");
+      // Narrate immediately — speak() must fire before any await so it
+      // stays within the browser's user-gesture window and autoplay works.
+      // It returns the generated audio so we can store it for reuse.
+      const audioPromise = speak(data.spokenScript);
+      // Save in the background; don't block narration on it.
+      save({
+        placeLabel: data.placeLabel,
+        spokenScript: data.spokenScript,
+        confidence: data.confidence,
+        sources: data.sources,
+      }).then(async (savedStory) => {
+        setSaving(false);
+        setSaved(!!savedStory);
+        // Once both the row and the audio exist, store the audio in
+        // Supabase so future plays stream it instead of regenerating.
+        if (savedStory) {
+          const blob = await audioPromise;
+          if (blob) attachAudio(savedStory.id, blob);
+        }
+      }).catch(() => setSaving(false));
+    } catch {
+      setError("Something went sideways. Try again.");
+      setPhase("idle");
+    }
+  }
+
   function go() {
     setError("");
     setStory(null);
@@ -120,58 +199,10 @@ export default function Home() {
     setLoadingLine(LOADING_LINES[0]);
 
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        try {
-          setLoadingLine(LOADING_LINES[1]);
-          const res = await fetch("/api/story", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              usedArticles: getUsedArticles(),
-            }),
-          });
-          setLoadingLine(LOADING_LINES[2]);
-          const data = await res.json();
-          if (!res.ok) {
-            setError(data.error || "Something went sideways. Try again.");
-            setPhase("idle");
-            return;
-          }
-          // Remember that location was granted so we skip the intro next time.
-          try { localStorage.setItem(LOC_KEY, "1"); } catch { /* ignore */ }
-          // Track which articles were used so next tap gets different topics.
-          if (data.sources?.length) saveUsedArticles(data.sources.map((s: {title: string}) => s.title));
-          setStory(data);
-          setSaved(false);
-          setSaving(true);
-          setSourcesOpen(false);
-          setPhase("done");
-          // Narrate immediately — speak() must fire before any await so it
-          // stays within the browser's user-gesture window and autoplay works.
-          // It returns the generated audio so we can store it for reuse.
-          const audioPromise = speak(data.spokenScript);
-          // Save in the background; don't block narration on it.
-          save({
-            placeLabel: data.placeLabel,
-            spokenScript: data.spokenScript,
-            confidence: data.confidence,
-            sources: data.sources,
-          }).then(async (savedStory) => {
-            setSaving(false);
-            setSaved(!!savedStory);
-            // Once both the row and the audio exist, store the audio in
-            // Supabase so future plays stream it instead of regenerating.
-            if (savedStory) {
-              const blob = await audioPromise;
-              if (blob) attachAudio(savedStory.id, blob);
-            }
-          }).catch(() => setSaving(false));
-        } catch {
-          setError("Something went sideways. Try again.");
-          setPhase("idle");
-        }
+      (pos) => {
+        // Lock this spot so "Tell Me More" can return to it later.
+        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        fetchStory(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
@@ -183,6 +214,18 @@ export default function Home() {
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
+  }
+
+  // Another story about the SAME spot — fresh angle, skips already-used topics.
+  // No new GPS read, so it stays on the place even if the user has driven on.
+  function tellMeMore() {
+    if (!coords) { go(); return; }
+    setError("");
+    setStory(null);
+    stop();
+    setPhase("loading");
+    setLoadingLine(LOADING_LINES[0]);
+    fetchStory(coords.lat, coords.lon);
   }
 
   return (
@@ -408,6 +451,12 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-3 mb-6">
+              <button
+                onClick={tellMeMore}
+                className="glass w-full rounded-2xl py-4 text-base font-bold text-[var(--gold)] hover:border-[var(--gold)]/40 transition flex items-center justify-center gap-2"
+              >
+                ✨  Tell Me More About Here
+              </button>
               <div className="grid grid-cols-2 gap-3">
                 <div
                   className="glass w-full rounded-2xl py-4 text-base font-bold flex items-center justify-center text-center select-none"
@@ -425,7 +474,7 @@ export default function Home() {
                   onClick={go}
                   className="glass w-full rounded-2xl py-4 text-base font-bold hover:border-[var(--gold)]/40 transition"
                 >
-                  ↺  New Story
+                  ↺  New Spot
                 </button>
               </div>
             </div>

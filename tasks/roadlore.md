@@ -30,7 +30,8 @@
 
 - [x] Save stories to **Supabase** (table `saved_stories`, per-device): ♥ Save button + /saved page (play/delete)
 - [ ] Add a simple login so each user's saved list is truly private (today it's per-device via a stored id; only the `saved_stories` table is used)
-- [ ] Story modes (History / Weird Facts / Family / Prairie Drama)
+- [x] "Tell Me More About Here" button — another story about the SAME spot (locks coords, fresh angle, skips already-used Wikipedia topics) even after the user has driven past
+- [ ] Story modes / genre picker (History / Weird Facts / Family / Prairie Drama) — let the user CHOOSE the angle instead of random; angles already exist in storyPrompt.ts
 - [ ] Drive-safety mode (audio-first when moving)
 - [ ] Optional: swap writer to Gemini free tier for $0 running cost
 - [ ] Optional: paste-a-Google-Maps-link fallback when GPS is blocked
