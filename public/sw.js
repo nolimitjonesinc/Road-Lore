@@ -1,7 +1,7 @@
 // Service worker — makes RoadLore installable, but always prefers the LATEST
 // page from the network so a deploy shows up immediately. Cache is only a
 // fallback for offline. Hardened so a failed fetch can never throw.
-const SHELL = "roadlore-shell-v3";
+const SHELL = "roadlore-shell-v4";
 const ASSETS = ["/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -52,7 +52,29 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets: cache-first, then network — never let a failure throw.
+  // Icons & manifest: network-first so a new deploy's artwork always wins.
+  // Cache is only a fallback for offline. This stops a stale icon from sticking.
+  const isIconish =
+    /\.(png|ico|svg)$/i.test(url.pathname) ||
+    url.pathname.endsWith(".webmanifest");
+
+  if (isIconish) {
+    event.respondWith(
+      (async () => {
+        try {
+          const res = await fetch(req);
+          const copy = res.clone();
+          caches.open(SHELL).then((c) => c.put(req, copy));
+          return res;
+        } catch {
+          return (await caches.match(req)) || Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // Other static assets: cache-first, then network — never let a failure throw.
   event.respondWith(
     (async () => {
       const cached = await caches.match(req);
