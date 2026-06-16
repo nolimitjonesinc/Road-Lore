@@ -73,7 +73,7 @@ const MODE_ANGLES: Record<string, string> = {
   spooky:
     "Tell it like a ghost story — what haunts, lingers, or feels eerie about this place?",
   famous:
-    "Focus on the famous and almost-famous: who passed through, who grew up here, who left their mark?",
+    "Pick ONE or TWO of the real notable people listed in the source material and tell their story here — who they are, what they're known for, and the fact that this spot shaped them or hosted them. Use the verified NOTABLE PEOPLE list; do not invent residents.",
   nature:
     "Go deep on the natural history of this land — what was here before the buildings?",
 };
@@ -112,6 +112,12 @@ export function buildUserMessage(ctx: LocationContext, angle: string): string {
       lines.push(`\n--- ${s.title} (${dist}) ---`);
       lines.push(s.summary);
     });
+  }
+
+  if (ctx.notables.length > 0) {
+    lines.push("");
+    lines.push("VERIFIED NOTABLE PEOPLE CONNECTED TO THIS AREA (real, from Wikipedia — safe to name):");
+    ctx.notables.forEach((p) => lines.push(`- ${p}`));
   }
 
   if (ctx.osmPois.length > 0) {

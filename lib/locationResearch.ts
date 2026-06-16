@@ -28,6 +28,7 @@ export interface LocationContext {
   region: string;
   sources: NearbySource[];
   osmPois: OsmPoi[];
+  notables: string[]; // real "Notable residents/people" from nearby Wikipedia articles
 }
 
 async function fetchJson(url: string): Promise<any> {
@@ -89,6 +90,46 @@ async function articleFullIntro(
     };
   } catch {
     return null;
+  }
+}
+
+// Step 3b: pull the REAL "Notable residents / people" list from an article.
+// Landmark intros never say who lived somewhere — this section does, and it's
+// sourced. Catches both a town's famous residents and a school's notable alumni.
+function parseNotables(wikitext: string): string[] {
+  const out: string[] = [];
+  for (const raw of wikitext.split("\n")) {
+    const line = raw.trim();
+    if (!line.startsWith("*")) continue;
+    let l = line.replace(/^\*+/, "").trim();
+    l = l.replace(/<ref[^>]*\/>/g, "").replace(/<ref.*?<\/ref>/g, ""); // drop citations
+    l = l.replace(/\[\[([^|\]]*\|)?([^\]]*)\]\]/g, "$2"); // [[Link|Text]] -> Text
+    l = l.replace(/'''?/g, "").replace(/<[^>]+>/g, "").trim();
+    l = l.replace(/\{\{[^}]*\}\}/g, "").trim();
+    if (l.length > 2 && l.length < 160) out.push(l);
+  }
+  return out;
+}
+
+async function notablePeopleFor(title: string): Promise<string[]> {
+  try {
+    const secUrl =
+      `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}` +
+      `&prop=sections&format=json&redirects=1`;
+    const secData = await fetchJson(secUrl);
+    const sections = secData?.parse?.sections || [];
+    const sec = sections.find((s: any) =>
+      /notable (residents|people|figures|alumni)|notable$/i.test(s.line || "")
+    );
+    if (!sec) return [];
+    const wtUrl =
+      `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(title)}` +
+      `&prop=wikitext&section=${sec.index}&format=json&redirects=1`;
+    const wtData = await fetchJson(wtUrl);
+    const txt = wtData?.parse?.wikitext?.["*"] || "";
+    return parseNotables(txt);
+  } catch {
+    return [];
   }
 }
 
@@ -275,11 +316,28 @@ export async function researchLocation(
 
   const sources = summaries.filter((s): s is NearbySource => s !== null);
 
+  // Pull REAL notable residents/alumni from the nearest few articles (the town
+  // itself, nearby schools, etc.). This is what makes "Famous People" actually
+  // surface Jimmy Fallon instead of a story about the local library.
+  const notableTitles = byDistance.slice(0, 5).map((a) => a.title);
+  const notableLists = await Promise.all(notableTitles.map((t) => notablePeopleFor(t)));
+  const seenNotable = new Set<string>();
+  const notables: string[] = [];
+  for (const list of notableLists) {
+    for (const person of list) {
+      const key = person.split(/[-–—,(]/)[0].trim().toLowerCase();
+      if (key && !seenNotable.has(key)) {
+        seenNotable.add(key);
+        notables.push(person);
+      }
+    }
+  }
+
   // Keep only POIs genuinely close to the pin (within 1.2km) so a neighborhood
   // story doesn't get peppered with spots from the next town over.
   const closePois = osmPois.filter((p) => p.distanceMeters <= 1200);
 
   const label = placeNameOverride?.trim() || placeLabel;
 
-  return { placeLabel: label, region, sources, osmPois: closePois };
+  return { placeLabel: label, region, sources, osmPois: closePois, notables: notables.slice(0, 18) };
 }
