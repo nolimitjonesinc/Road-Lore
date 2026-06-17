@@ -26,6 +26,30 @@
 - [x] Connect custom domain (roadlore.nolimitjones.com — auto-verified via Vercel DNS)
 - [ ] Evaluate moving to Next.js 16 (clears 2 residual low-risk DoS advisories; breaking change, not urgent for a Vercel-hosted no-image-optimizer app)
 
+## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
+
+**Decisions locked (2026-06-16):**
+- Model: **5 free stories, then $7.99 one-time unlock** for unlimited.
+- Why one-time not subscription: road-trip use is bursty; pay-once-own-forever converts better and fits how people travel.
+- Unlock mechanism: **LemonSqueezy license key**. Buyer pastes their key into RoadLore once; our server validates it with LemonSqueezy before unlocking. Key works on any device (no login needed). The free counter is client-side and bypassable on purpose — abuse only costs pennies; the paid gate is what's solid.
+- Costs confirmed: ~½¢ Claude + ~1.5¢ Gemini voice = ~2¢ per new story. Audio is cached on-device so replays are free. Margin on $7.99 ≈ 75–90%.
+- LemonSqueezy fee: 5% + 50¢ per sale (this is why cheap/tip pricing was ruled out).
+- API keys are account-level (one key covers all stores, valid 1 year) — no store-specific key needed.
+
+**Blocked on DJ (do these to unblock the build):**
+- [ ] In LemonSqueezy dashboard: create a **$7.99 one-time product**, tick "this product has license keys," publish it. (Claude will guide click-by-click.)
+- [ ] Generate one LemonSqueezy **API key** (live mode) and hand it to Claude → goes into `.env.local` as `LEMONSQUEEZY_API_KEY` (never committed).
+- [ ] Note the **store ID** and **product/variant ID** (Claude can read these via the API once the key exists).
+
+**Claude builds (once key + product exist):**
+- [ ] Client-side free-story counter (allow 5, stored in localStorage) + paywall screen when exhausted.
+- [ ] "Unlock unlimited — $7.99" buy button → opens the LemonSqueezy checkout.
+- [ ] "Paste your license key" input + server route that validates the key with LemonSqueezy (activate on first use).
+- [ ] Server gate on `/api/story`: unlimited only for requests carrying a valid, activated license key.
+- [ ] Persist unlocked state (store validated key in localStorage; re-check on load).
+- [ ] Honest error states (invalid key, already-activated-elsewhere if we cap devices, network fail).
+- [ ] Test full flow: hit the 5-free wall → buy → paste key → unlimited works → survives refresh.
+
 ## Later — The Bigger Vision (do NOT build yet)
 
 - [x] Save stories to **Supabase** (table `saved_stories`, per-device): ♥ Save button + /saved page (play/delete)
