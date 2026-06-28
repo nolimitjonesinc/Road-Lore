@@ -73,6 +73,39 @@ const VOICE_LOADING_LINES = [
   "Buckle up—your roadside storyteller is grabbing the mic.",
 ];
 
+const NEARBY_LOADING_LINES = [
+  "Checking which direction is actually north…",
+  "Bribing the local pigeons for intel…",
+  "Unfolding the map — yes, the actual paper one…",
+  "Asking a suspicious-looking squirrel for directions…",
+  "Pinging every lamppost within shouting distance…",
+  "Scanning the horizon for anything remotely interesting…",
+  "Convincing the GPS to stop rerouting every 10 seconds…",
+  "Sniffing out the good stuff nearby…",
+  "Checking if that building over there has a story…",
+  "Interrogating the neighborhood watch…",
+  "Consulting the world's most detailed roadside atlas…",
+  "Zooming in on your little blue dot…",
+  "Sending a scout ahead — they just texted back \"whoa\"…",
+  "Locating every named thing within range…",
+  "Finding the places your GPS forgot to mention…",
+  "Triangulating via three very confident strangers…",
+  "Checking if \"interesting\" is within driving distance…",
+  "Searching for nearby legends, lore, and at least one ghost…",
+  "Cross-referencing with approximately 47 maps…",
+  "Rounding up the neighborhood's best-kept secrets…",
+  "Dusting off the local signage…",
+  "Looking for the stuff not on the tourist pamphlet…",
+  "Counting landmarks on one hand — ran out of fingers…",
+  "Waking up the locals to ask what's around here…",
+  "Measuring \"nearby\" very generously…",
+  "Triangulating your exact vibe radius…",
+  "Following the sound of a distant tour bus…",
+  "Checking if that weird building has a Wikipedia page…",
+  "Calculating distance in both miles and \"is it worth it\"…",
+  "Almost there — just asking one more stranger…",
+];
+
 const LOC_KEY = "rl_loc_granted";
 const USED_KEY = "rl_used_articles";
 
@@ -112,6 +145,7 @@ export default function Home() {
   const [radiusMi, setRadiusMi] = useState(5);
   const [places, setPlaces] = useState<NearbyPlace[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [nearbyLineIndex, setNearbyLineIndex] = useState(0);
   const [showRadiusPopup, setShowRadiusPopup] = useState(false);
 
   useEffect(() => {
@@ -130,6 +164,15 @@ export default function Home() {
     try { localStorage.setItem(RADIUS_KEY, String(miles)); } catch { /* ignore */ }
     setShowRadiusPopup(false);
   }
+
+  useEffect(() => {
+    if (!placesLoading) return;
+    setNearbyLineIndex(0);
+    const id = setInterval(() => {
+      setNearbyLineIndex((i) => (i + 1) % NEARBY_LOADING_LINES.length);
+    }, 2000);
+    return () => clearInterval(id);
+  }, [placesLoading]);
 
   useEffect(() => {
     if (!audioLoading) return;
@@ -631,7 +674,7 @@ export default function Home() {
                     </div>
 
                     {placesLoading ? (
-                      <p className="text-sm text-[var(--muted)] py-2">Finding nearby spots…</p>
+                      <p className="text-sm text-[var(--muted)] py-2">{NEARBY_LOADING_LINES[nearbyLineIndex]}</p>
                     ) : places.length === 0 ? (
                       <p className="text-sm text-[var(--muted)] py-2">
                         No named neighborhoods found out here — try a wider distance.
