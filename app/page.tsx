@@ -17,6 +17,7 @@ interface NearbyPlace {
 
 const DISTANCE_OPTIONS = [0.5, 1, 5, 10, 25]; // miles
 const MILES_TO_METERS = 1609.34;
+const RADIUS_KEY = "rl_radius_mi";
 
 interface Source {
   title: string;
@@ -111,6 +112,24 @@ export default function Home() {
   const [radiusMi, setRadiusMi] = useState(5);
   const [places, setPlaces] = useState<NearbyPlace[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
+  const [showRadiusPopup, setShowRadiusPopup] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(RADIUS_KEY);
+      if (saved) {
+        setRadiusMi(Number(saved));
+      } else {
+        setShowRadiusPopup(true);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  function selectRadius(miles: number) {
+    setRadiusMi(miles);
+    try { localStorage.setItem(RADIUS_KEY, String(miles)); } catch { /* ignore */ }
+    setShowRadiusPopup(false);
+  }
 
   useEffect(() => {
     if (!audioLoading) return;
@@ -306,6 +325,30 @@ export default function Home() {
 
   return (
     <>
+      {showRadiusPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-6">
+          <div className="glass rounded-[28px] p-8 w-full max-w-sm rise">
+            <div className="text-4xl mb-4 text-center">🗺️</div>
+            <h2 className="text-2xl font-bold mb-2 text-center font-[family-name:var(--font-display)]">
+              How far should we look?
+            </h2>
+            <p className="text-[var(--muted)] text-sm text-center mb-6 leading-relaxed">
+              Pick your search radius. You can always change it later.
+            </p>
+            <div className="flex flex-col gap-3">
+              {DISTANCE_OPTIONS.map((d) => (
+                <button
+                  key={d}
+                  onClick={() => selectRadius(d)}
+                  className="glass rounded-2xl py-4 text-base font-bold text-[var(--cream)] border border-white/10 hover:border-[var(--gold)]/40 transition"
+                >
+                  {d} {d === 1 ? "mile" : "miles"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       <Scene />
       <main className="relative z-10 min-h-[100dvh] flex flex-col items-center justify-center px-6 py-12 text-center">
         {/* Brand */}
@@ -575,17 +618,16 @@ export default function Home() {
 
                 {exploreOpen && (
                   <div className="mt-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-sm text-[var(--muted)]">Within</span>
-                      <select
-                        value={radiusMi}
-                        onChange={(e) => setRadiusMi(Number(e.target.value))}
-                        className="bg-[var(--navy)] text-[var(--cream)] border border-white/15 rounded-lg px-3 py-1.5 text-sm font-semibold focus:outline-none focus:border-[var(--gold)]/50"
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-[var(--muted)]">
+                        Within <span className="text-[var(--cream)] font-semibold">{radiusMi} {radiusMi === 1 ? "mile" : "miles"}</span>
+                      </span>
+                      <button
+                        onClick={() => setShowRadiusPopup(true)}
+                        className="text-xs text-[var(--gold)] hover:text-[var(--gold)]/70 transition font-semibold"
                       >
-                        {DISTANCE_OPTIONS.map((d) => (
-                          <option key={d} value={d}>{d} {d === 1 ? "mile" : "miles"}</option>
-                        ))}
-                      </select>
+                        Change
+                      </button>
                     </div>
 
                     {placesLoading ? (
