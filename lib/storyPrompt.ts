@@ -84,11 +84,15 @@ export function angleForMode(mode?: string): string {
   return pickStoryAngle();
 }
 
-export function buildUserMessage(ctx: LocationContext, angle: string): string {
+export function buildUserMessage(ctx: LocationContext, angle: string, lookAhead = false): string {
   const lines: string[] = [];
   lines.push(`THE PLACE: ${ctx.placeLabel}`);
   if (ctx.region) lines.push(`REGION: ${ctx.region}`);
   lines.push("");
+  if (lookAhead) {
+    lines.push("FRAMING: The listener is in a moving vehicle and this location is coming up approximately 1 mile ahead of them. Write the story as if teeing up what they're about to pass — use language like \"just ahead,\" \"coming up,\" or \"you're about to pass\" — not as if they've already arrived or are already there.");
+    lines.push("");
+  }
   lines.push(`YOUR ANGLE THIS TIME: ${angle}`);
   lines.push("");
   lines.push(

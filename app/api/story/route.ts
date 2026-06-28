@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     );
   }
 
-  let lat: number, lon: number, usedArticles: string[], mode: string | undefined, placeName: string | undefined;
+  let lat: number, lon: number, usedArticles: string[], mode: string | undefined, placeName: string | undefined, lookAhead: boolean;
   try {
     const body = await req.json();
     lat = Number(body.latitude);
@@ -23,6 +23,7 @@ export async function POST(req: Request) {
     usedArticles = Array.isArray(body.usedArticles) ? body.usedArticles.map(String) : [];
     mode = typeof body.mode === "string" ? body.mode : undefined;
     placeName = typeof body.placeName === "string" && body.placeName.trim() ? body.placeName.trim() : undefined;
+    lookAhead = body.lookAhead === true;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
       model: "claude-sonnet-4-6",
       max_tokens: 600,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserMessage(ctx, angle) }],
+      messages: [{ role: "user", content: buildUserMessage(ctx, angle, lookAhead) }],
     });
     spokenScript = msg.content
       .filter((b) => b.type === "text")

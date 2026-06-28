@@ -109,6 +109,18 @@ const NEARBY_LOADING_LINES = [
 const LOC_KEY = "rl_loc_granted";
 const USED_KEY = "rl_used_articles";
 
+// Project a point ~distanceMiles ahead along a compass heading.
+function projectAhead(lat: number, lon: number, headingDeg: number, distanceMiles: number) {
+  const R = 6371;
+  const d = (distanceMiles * 1.60934) / R;
+  const lat1 = (lat * Math.PI) / 180;
+  const lon1 = (lon * Math.PI) / 180;
+  const brng = (headingDeg * Math.PI) / 180;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng));
+  const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+  return { lat: (lat2 * 180) / Math.PI, lon: (lon2 * 180) / Math.PI };
+}
+
 function getUsedArticles(): string[] {
   try { return JSON.parse(localStorage.getItem(USED_KEY) || "[]"); } catch { return []; }
 }
@@ -219,7 +231,8 @@ export default function Home() {
     latitude: number,
     longitude: number,
     mode?: string,
-    placeName?: string
+    placeName?: string,
+    lookAhead?: boolean
   ) {
     try {
       setLoadingLine(LOADING_LINES[1]);
@@ -232,6 +245,7 @@ export default function Home() {
           usedArticles: getUsedArticles(),
           mode: mode ?? selectedMode,
           placeName: placeName ?? undefined,
+          lookAhead: lookAhead ?? false,
         }),
       });
       setLoadingLine(LOADING_LINES[2]);
@@ -291,11 +305,15 @@ export default function Home() {
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // Lock this spot so "Tell Me More" can return to it later. No anchor
-        // name — let the server reverse-geocode wherever the GPS landed.
-        setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        const { latitude, longitude, heading } = pos.coords;
+        const hasHeading = heading !== null && Number.isFinite(heading);
+        const target = hasHeading
+          ? projectAhead(latitude, longitude, heading!, 1)
+          : { lat: latitude, lon: longitude };
+        // Lock the TARGET spot (ahead or current) so "Tell Me More" stays on it.
+        setCoords(target);
         setAnchorName(null);
-        fetchStory(pos.coords.latitude, pos.coords.longitude);
+        fetchStory(target.lat, target.lon, undefined, undefined, hasHeading);
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
