@@ -17,22 +17,21 @@ drop policy if exists "public upload road lore audio" on storage.objects;
 create policy "public upload road lore audio" on storage.objects
   for insert with check (bucket_id = 'road-lore-audio');
 
+-- No public update/delete policy on purpose: each story's audio file is
+-- written once (unique id per story) and never overwritten, so there's no
+-- legitimate reason a client needs to modify or delete someone else's
+-- narration. Drop any older versions of these policies if they exist.
 drop policy if exists "public overwrite road lore audio" on storage.objects;
-create policy "public overwrite road lore audio" on storage.objects
-  for update using (bucket_id = 'road-lore-audio');
-
 drop policy if exists "public delete road lore audio" on storage.objects;
-create policy "public delete road lore audio" on storage.objects
-  for delete using (bucket_id = 'road-lore-audio');
 
 -- 2) Shared story pool — every auto-generated story, public to all devices,
 --    keyed by the landmark it's about + the chosen story vibe.
 create table if not exists roadlore_shared_stories (
   id uuid primary key default gen_random_uuid(),
-  landmark_key text not null,
-  place_label text not null,
-  mode text not null default 'surprise',
-  spoken_script text not null,
+  landmark_key text not null check (char_length(landmark_key) between 1 and 300),
+  place_label text not null check (char_length(place_label) between 1 and 300),
+  mode text not null default 'surprise' check (char_length(mode) between 1 and 50),
+  spoken_script text not null check (char_length(spoken_script) between 1 and 4000),
   confidence text not null,
   sources jsonb not null default '[]',
   audio_url text,
@@ -52,9 +51,10 @@ drop policy if exists "public insert shared stories" on roadlore_shared_stories;
 create policy "public insert shared stories" on roadlore_shared_stories
   for insert with check (true);
 
+-- No public UPDATE policy: /api/story writes each row exactly once (audio
+-- is uploaded and the public URL known before the insert happens), so
+-- there's never a legitimate update to allow. Drop any older version.
 drop policy if exists "public update shared stories" on roadlore_shared_stories;
-create policy "public update shared stories" on roadlore_shared_stories
-  for update using (true);
 
 -- 3) Per-device "heard" log — stops a phone hearing the same story (or every
 --    story about the same landmark) twice.

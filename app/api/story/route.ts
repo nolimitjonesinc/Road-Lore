@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { researchLocation } from "@/lib/locationResearch";
@@ -45,6 +46,31 @@ function buildWavHeader(
   buf.write("data", 36);
   buf.writeUInt32LE(pcmByteLength, 40);
   return buf;
+}
+
+// Guards against a corrupted/malicious pool row: sources are rendered as
+// <a href> links and audioUrl is loaded as an <audio> src, so anything read
+// back out of the shared pool gets revalidated before reaching the client.
+function safeSources(sources: unknown): { title: string; url: string; distanceMeters: number }[] {
+  if (!Array.isArray(sources)) return [];
+  return sources.filter((s): s is { title: string; url: string; distanceMeters: number } => {
+    if (!s || typeof s !== "object") return false;
+    const url = (s as { url?: unknown }).url;
+    if (typeof url !== "string") return false;
+    try {
+      return new URL(url).protocol === "https:";
+    } catch {
+      return false;
+    }
+  });
+}
+
+function safeAudioUrl(url: unknown): string | undefined {
+  if (typeof url !== "string" || !url) return undefined;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return undefined;
+  const prefix = `${supabaseUrl}/storage/v1/object/public/${AUDIO_BUCKET}/`;
+  return url.startsWith(prefix) ? url : undefined;
 }
 
 async function synthesizeAudio(text: string): Promise<Buffer | null> {
@@ -150,8 +176,8 @@ export async function POST(req: Request) {
           placeLabel: pick.place_label,
           spokenScript: pick.spoken_script,
           confidence: pick.confidence,
-          sources: pick.sources || [],
-          audioUrl: pick.audio_url || undefined,
+          sources: safeSources(pick.sources),
+          audioUrl: safeAudioUrl(pick.audio_url),
         });
       }
     } catch {
@@ -199,41 +225,39 @@ export async function POST(req: Request) {
 
   // 3) Auto-save to the shared pool: narrate it once, store the audio, and
   // mark it heard for this device — so the next person near this landmark
-  // (and this device's next "Tell Me More") gets it free and instant.
+  // (and this device's next "Tell Me More") gets it free and instant. The id
+  // is generated up front so audio can upload before the row is written —
+  // one insert, never an update, so the pool table needs no public UPDATE
+  // policy at all.
   let audioUrl: string | undefined;
   if (sb) {
     try {
-      const { data: inserted, error: insertErr } = await sb
-        .from("roadlore_shared_stories")
-        .insert({
-          landmark_key: landmarkKey,
-          place_label: ctx.placeLabel,
-          mode: modeKey,
-          spoken_script: spokenScript,
-          confidence,
-          sources,
-        })
-        .select()
-        .single();
+      const storyId = randomUUID();
+      const wav = await synthesizeAudio(spokenScript);
+      if (wav) {
+        const path = `shared/${storyId}.wav`;
+        const { error: upErr } = await sb.storage
+          .from(AUDIO_BUCKET)
+          .upload(path, wav, { contentType: "audio/wav" });
+        if (!upErr) {
+          const { data: pub } = sb.storage.from(AUDIO_BUCKET).getPublicUrl(path);
+          audioUrl = pub?.publicUrl;
+        }
+      }
 
-      if (!insertErr && inserted) {
-        const wav = await synthesizeAudio(spokenScript);
-        if (wav) {
-          const path = `shared/${inserted.id}.wav`;
-          const { error: upErr } = await sb.storage
-            .from(AUDIO_BUCKET)
-            .upload(path, wav, { contentType: "audio/wav", upsert: true });
-          if (!upErr) {
-            const { data: pub } = sb.storage.from(AUDIO_BUCKET).getPublicUrl(path);
-            if (pub?.publicUrl) {
-              audioUrl = pub.publicUrl;
-              await sb.from("roadlore_shared_stories").update({ audio_url: audioUrl }).eq("id", inserted.id);
-            }
-          }
-        }
-        if (deviceId) {
-          await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: inserted.id });
-        }
+      const { error: insertErr } = await sb.from("roadlore_shared_stories").insert({
+        id: storyId,
+        landmark_key: landmarkKey,
+        place_label: ctx.placeLabel,
+        mode: modeKey,
+        spoken_script: spokenScript,
+        confidence,
+        sources,
+        audio_url: audioUrl,
+      });
+
+      if (!insertErr && deviceId) {
+        await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: storyId });
       }
     } catch {
       // Shared-pool save is best-effort — never block the story response on it.
