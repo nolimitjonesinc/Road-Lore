@@ -47,11 +47,19 @@ on-device (IndexedDB) so replays are instant and work offline.
 
 ## Supabase
 - Project: ftcdqmrjjooluihysuyc
-- Table: `roadlore_saved_stories`
-- Columns: id (uuid), device_id, place_label, spoken_script, confidence, sources (json), created_at
-- No real auth — stories scoped to a per-device UUID stored in localStorage (`roadlore.device`)
-- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already in Vercel)
-- RLS must allow anon insert/select/delete scoped to device_id
+- Audio bucket: `road-lore-audio` (public). Replaces the old `story-audio` bucket — Supabase can't rename buckets, so old links there still work, new audio writes here.
+- Table: `roadlore_saved_stories` — a user's personal bookmarked stories.
+  - Columns: id (uuid), device_id, place_label, spoken_script, confidence, sources (json), audio_url, created_at
+  - No real auth — scoped to a per-device UUID stored in localStorage (`roadlore.device`, see `lib/deviceId.ts`)
+  - RLS: anon insert/select/delete scoped to device_id
+- Table: `roadlore_shared_stories` — the shared story pool. Every story `/api/story` generates is auto-saved here (script + narrated audio), keyed by `landmark_key` (closest Wikipedia landmark) + `mode` (story vibe), so the next device near that landmark gets the cached narration instead of triggering a new Claude + Gemini call.
+  - Columns: id (uuid), landmark_key, place_label, mode, spoken_script, confidence, sources (json), audio_url, created_at
+  - RLS: public select/insert/update (no device scoping — this pool is shared by design)
+- Table: `roadlore_story_heard` — per-device log of which shared-pool stories a device has already played, so the same phone doesn't get the same story (or repeat landmark) twice.
+  - Columns: device_id, story_id (fk -> roadlore_shared_stories), heard_at
+  - RLS: public select/insert
+- Setup SQL for all of the above lives in `supabase/sql/2026-06-30-shared-story-pool.sql` — run once in the Supabase SQL editor.
+- Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already in Vercel). The anon key is used server-side too (in `/api/story`) — RLS, not a service key, is what locks this down.
 
 ## Style of the story
 Fun, touristy, lightly sassy, cinematic, family-safe. Written for listening,

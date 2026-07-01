@@ -229,6 +229,71 @@ out body 60;
     );
 }
 
+export interface MapPoi extends OsmPoi {
+  lat: number;
+  lon: number;
+}
+
+// Real, named, physical things within a tight radius of a point (lakes,
+// statues, historic markers, parks…) — with coordinates, for the tappable
+// "what did I just pass?" map. Separate from nearbyOsmPois's fixed 1km/1.2km
+// story-research radius so the map can use a tighter, user-chosen radius.
+export async function nearbyMapPois(
+  lat: number,
+  lon: number,
+  radiusMeters: number
+): Promise<MapPoi[]> {
+  const r = Math.min(Math.max(Math.round(radiusMeters), 100), 3000);
+  const query = `
+[out:json][timeout:15];
+(
+  node["historic"](around:${r},${lat},${lon});
+  way["historic"](around:${r},${lat},${lon});
+  node["tourism"~"museum|attraction|artwork|viewpoint|gallery"](around:${r},${lat},${lon});
+  way["tourism"~"museum|attraction|artwork|viewpoint|gallery"](around:${r},${lat},${lon});
+  node["leisure"~"park|nature_reserve"](around:${r},${lat},${lon});
+  way["leisure"~"park|nature_reserve"](around:${r},${lat},${lon});
+  node["natural"~"water|beach"](around:${r},${lat},${lon});
+  way["natural"~"water|beach"](around:${r},${lat},${lon});
+  node["amenity"="place_of_worship"]["name"](around:${r},${lat},${lon});
+  node["man_made"~"lighthouse|windmill"](around:${r},${lat},${lon});
+);
+out center body 40;
+  `.trim();
+
+  const data = await fetchOverpass(query);
+  if (!data?.elements) return [];
+
+  const pois: MapPoi[] = [];
+  for (const elem of data.elements) {
+    const tags = elem.tags || {};
+    const name = tags.name;
+    if (!name) continue;
+
+    let type = "place";
+    if (tags.historic) type = tags.historic === "yes" ? "historic site" : tags.historic;
+    else if (tags.tourism) type = tags.tourism;
+    else if (tags.leisure) type = tags.leisure === "park" ? "park" : "nature reserve";
+    else if (tags.natural) type = tags.natural === "water" ? "lake / water" : "beach";
+    else if (tags.amenity === "place_of_worship") type = "place of worship";
+    else if (tags.man_made) type = tags.man_made;
+
+    const poiLat = elem.center?.lat || elem.lat;
+    const poiLon = elem.center?.lon || elem.lon;
+    if (!poiLat || !poiLon) continue;
+
+    pois.push({
+      name,
+      type,
+      distanceMeters: Math.round(calculateDistance(lat, lon, poiLat, poiLon)),
+      lat: poiLat,
+      lon: poiLon,
+    });
+  }
+
+  return pois.sort((a, b) => a.distanceMeters - b.distanceMeters);
+}
+
 async function nearbyOsmPois(lat: number, lon: number): Promise<OsmPoi[]> {
   const query = `
 [out:json][timeout:10];

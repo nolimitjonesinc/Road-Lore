@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import Scene from "./scene";
 import { useSpeech } from "@/hooks/useSpeech";
 import { useSavedStories } from "@/hooks/useSavedStories";
 import { STORY_MODES } from "@/lib/storyPrompt";
+import { deviceId } from "@/lib/deviceId";
+import type { MapPoi } from "./mapExplorer";
+
+// Leaflet touches window at import time, so it can only load in the browser.
+const MapExplorer = dynamic(() => import("./mapExplorer"), { ssr: false });
+
+const MAP_RADIUS_METERS = 305; // ~1000ft
 
 interface NearbyPlace {
   name: string;
@@ -30,6 +38,7 @@ interface Story {
   spokenScript: string;
   confidence: string;
   sources: Source[];
+  audioUrl?: string;
 }
 
 type Phase = "intro" | "idle" | "loading" | "done" | "denied";
@@ -135,7 +144,7 @@ function saveUsedArticles(titles: string[]) {
 
 export default function Home() {
   const { supported, speaking, audioLoading, speak, stop, repeat } = useSpeech();
-  const { save, attachAudio } = useSavedStories();
+  const { save, attachAudio, linkAudio } = useSavedStories();
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [phase, setPhase] = useState<Phase>("intro");
@@ -159,6 +168,10 @@ export default function Home() {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [nearbyLineIndex, setNearbyLineIndex] = useState(0);
   const [showRadiusPopup, setShowRadiusPopup] = useState(false);
+  // Tappable map of what's within ~1000ft of where the user was standing.
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapPois, setMapPois] = useState<MapPoi[]>([]);
+  const [mapLoading, setMapLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -246,6 +259,7 @@ export default function Home() {
           mode: mode ?? selectedMode,
           placeName: placeName ?? undefined,
           lookAhead: lookAhead ?? false,
+          deviceId: deviceId(),
         }),
       });
       setLoadingLine(LOADING_LINES[2]);
@@ -266,8 +280,10 @@ export default function Home() {
       setPhase("done");
       // Narrate immediately — speak() must fire before any await so it
       // stays within the browser's user-gesture window and autoplay works.
-      // It returns the generated audio so we can store it for reuse.
-      const audioPromise = speak(data.spokenScript);
+      // If the server already has this narrated (shared-pool cache hit or a
+      // fresh Gemini render it just stored), play that directly — no extra
+      // Gemini call. Otherwise it generates audio client-side as before.
+      const audioPromise = speak(data.spokenScript, data.audioUrl);
       // Save in the background; don't block narration on it.
       save({
         placeLabel: data.placeLabel,
@@ -277,9 +293,11 @@ export default function Home() {
       }).then(async (savedStory) => {
         setSaving(false);
         setSaved(!!savedStory);
-        // Once both the row and the audio exist, store the audio in
-        // Supabase so future plays stream it instead of regenerating.
-        if (savedStory) {
+        if (!savedStory) return;
+        // Reuse the shared-pool audio link instead of re-uploading.
+        if (data.audioUrl) {
+          linkAudio(savedStory.id, data.audioUrl);
+        } else {
           const blob = await audioPromise;
           if (blob) attachAudio(savedStory.id, blob);
         }
@@ -384,6 +402,51 @@ export default function Home() {
     };
   }, [exploreOpen, radiusMi, coords]);
 
+  // Load real nearby map pins whenever the map is open — pulls whatever's
+  // within ~1000ft of where the user was standing when they tapped it.
+  useEffect(() => {
+    if (!mapOpen || !coords) return;
+    let cancelled = false;
+    setMapLoading(true);
+    setMapPois([]);
+    fetch("/api/map-pois", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        latitude: coords.lat,
+        longitude: coords.lon,
+        radiusMeters: MAP_RADIUS_METERS,
+      }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setMapPois(data.pois || []);
+      })
+      .catch(() => {
+        if (!cancelled) setMapPois([]);
+      })
+      .finally(() => {
+        if (!cancelled) setMapLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mapOpen, coords]);
+
+  // Tell a story about a pin tapped on the map. Re-locks coords AND name so
+  // "Tell Me More" keeps riffing on that exact spot.
+  function goToMapPoi(p: MapPoi) {
+    setError("");
+    setStory(null);
+    stop();
+    setCoords({ lat: p.lat, lon: p.lon });
+    setAnchorName(p.name);
+    setMapOpen(false);
+    setPhase("loading");
+    setLoadingLine(LOADING_LINES[0]);
+    fetchStory(p.lat, p.lon, undefined, p.name);
+  }
+
   return (
     <>
       {showRadiusPopup && (
@@ -407,6 +470,45 @@ export default function Home() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+      {mapOpen && coords && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
+          <div className="flex items-center justify-between px-5 py-4 glass border-b border-white/10">
+            <div>
+              <h2 className="text-lg font-bold text-[var(--cream)] font-[family-name:var(--font-display)]">
+                What Did I Just Pass?
+              </h2>
+              <p className="text-xs text-[var(--muted)]">
+                Tap a pin — real spots within ~1000ft of where you tapped.
+              </p>
+            </div>
+            <button
+              onClick={() => setMapOpen(false)}
+              className="text-[var(--muted)] hover:text-[var(--cream)] text-2xl leading-none px-2"
+              aria-label="Close map"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="relative flex-1">
+            <MapExplorer
+              center={coords}
+              radiusMeters={MAP_RADIUS_METERS}
+              pois={mapPois}
+              onPick={goToMapPoi}
+            />
+            {mapLoading && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-[var(--cream)] z-[1000]">
+                Scanning what's nearby…
+              </div>
+            )}
+            {!mapLoading && mapPois.length === 0 && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-[var(--muted)] z-[1000]">
+                Nothing named found this close — try a spot with more nearby landmarks.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -717,6 +819,13 @@ export default function Home() {
                   </div>
                 )}
               </div>
+
+              <button
+                onClick={() => setMapOpen(true)}
+                className="glass w-full rounded-2xl py-4 text-base font-bold text-[var(--gold)] hover:border-[var(--gold)]/40 transition flex items-center justify-center gap-2"
+              >
+                🗺️  What Did I Just Pass?
+              </button>
 
               <div className="grid grid-cols-2 gap-3">
                 <div

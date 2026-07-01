@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { deviceId } from "@/lib/deviceId";
 
 export interface SavedSource {
   title: string;
@@ -18,23 +19,7 @@ export interface SavedStory {
   audioUrl?: string; // public Supabase Storage link, once narration is stored
 }
 
-const AUDIO_BUCKET = "story-audio";
-
-// A stable per-device id so each phone sees its own saved list (until we add
-// real logins). Stored in the browser; the stories themselves live in Supabase.
-function deviceId(): string {
-  if (typeof window === "undefined") return "server";
-  const KEY = "roadlore.device";
-  let id = window.localStorage.getItem(KEY);
-  if (!id) {
-    id =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(Date.now()) + Math.random().toString(16).slice(2);
-    window.localStorage.setItem(KEY, id);
-  }
-  return id;
-}
+const AUDIO_BUCKET = "road-lore-audio";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function rowToStory(row: any): SavedStory {
@@ -121,6 +106,20 @@ export function useSavedStories() {
     );
   }, []);
 
+  // Points a saved story at audio that's already uploaded (e.g. the shared
+  // story-pool narration) instead of uploading a fresh copy.
+  const linkAudio = useCallback(async (id: string, url: string) => {
+    if (!supabase || !url) return;
+    const { error } = await supabase
+      .from("roadlore_saved_stories")
+      .update({ audio_url: url })
+      .eq("id", id);
+    if (error) return;
+    setStories((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, audioUrl: url } : s))
+    );
+  }, []);
+
   const remove = useCallback(async (id: string) => {
     if (!supabase) return;
     const { error } = await supabase
@@ -135,5 +134,5 @@ export function useSavedStories() {
     }
   }, []);
 
-  return { stories, loading, save, attachAudio, remove };
+  return { stories, loading, save, attachAudio, linkAudio, remove };
 }
