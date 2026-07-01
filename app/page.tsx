@@ -345,6 +345,49 @@ export default function Home() {
     );
   }
 
+  // "What's That?" — a tight look-ahead for something right in front of you
+  // right now (not the 1-mile driving version used by "Give Me the Lore").
+  // Needs a live compass heading; if the device can't supply one, say so
+  // instead of guessing a direction.
+  function whatsThat() {
+    setError("");
+    setStory(null);
+    stop();
+
+    if (!("geolocation" in navigator)) {
+      setError("This device can't share its location. Try another browser.");
+      return;
+    }
+
+    setPhase("loading");
+    setLoadingLine("Checking what's right in front of you…");
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude, heading } = pos.coords;
+        const hasHeading = heading !== null && Number.isFinite(heading);
+        if (!hasHeading) {
+          setError("Couldn't tell which way you're facing — walk a few steps, then tap again.");
+          setPhase("idle");
+          return;
+        }
+        const target = projectAhead(latitude, longitude, heading!, 0.2);
+        setCoords(target);
+        setAnchorName(null);
+        fetchStory(target.lat, target.lon, undefined, undefined, true);
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setPhase("denied");
+        } else {
+          setError("Couldn't find your location. Try again.");
+          setPhase("idle");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }
+
   // Another story about the SAME spot — uses the chosen vibe, skips already-used
   // topics. No new GPS read, so it stays on the place even after driving on.
   function tellMeMore() {
@@ -583,6 +626,12 @@ export default function Home() {
             >
               Give Me the Lore
             </button>
+            <button
+              onClick={() => setShowRadiusPopup(true)}
+              className="relative z-10 mt-4 text-sm text-[var(--muted)] hover:text-[var(--gold)] transition font-semibold"
+            >
+              🧭 Search radius: {radiusMi} mi · change
+            </button>
             {error && (
               <p className="mt-6 text-base text-rose-300">{error}</p>
             )}
@@ -657,7 +706,7 @@ export default function Home() {
         {phase === "done" && story && (
           <div className="w-full max-w-md rise">
             {/* Play button first — visible without scrolling */}
-            <div className="flex flex-col gap-3 mb-6">
+            <div className="flex flex-col gap-3 mb-4">
               <button
                 onClick={speaking ? stop : repeat}
                 disabled={audioLoading}
@@ -697,43 +746,8 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="glass rounded-[28px] p-7 text-left mb-6">
-              <p className="kicker text-[10px] text-[var(--gold)]/80 mb-2">
-                You are here
-              </p>
-              <h2 className="text-2xl font-bold mb-3 font-[family-name:var(--font-display)] leading-tight">
-                {story.placeLabel}
-              </h2>
-              {story.confidence === "low" && (
-                <p className="text-sm text-[var(--muted)] mb-3">
-                  Quiet corner of the map — here&apos;s the broader story.
-                </p>
-              )}
-              <p className="text-[17px] leading-relaxed text-[var(--cream)]">
-                {story.spokenScript}
-              </p>
-              {speaking && (
-                <p className="mt-4 text-sm text-[var(--gold)] flex items-center gap-2">
-                  <span className="inline-flex gap-0.5 items-end h-4">
-                    {[0, 1, 2, 3].map((i) => (
-                      <span
-                        key={i}
-                        className="w-1 bg-[var(--gold)] rounded-full"
-                        style={{
-                          height: "100%",
-                          animation: "twinkle 0.7s ease-in-out infinite",
-                          animationDelay: `${i * 0.12}s`,
-                        }}
-                      />
-                    ))}
-                  </span>
-                  Reading aloud…
-                </p>
-              )}
-            </div>
-
             {/* Pick a vibe for the next story */}
-            <div className="mb-5 text-left">
+            <div className="mb-4 text-left">
               <p className="kicker text-[10px] text-[var(--gold)]/80 mb-3">
                 Pick a vibe
               </p>
@@ -762,6 +776,13 @@ export default function Home() {
                 ✨  Tell Me More About Here
               </button>
 
+              <button
+                onClick={whatsThat}
+                className="glass w-full rounded-2xl py-4 text-base font-bold text-[var(--gold)] hover:border-[var(--gold)]/40 transition flex items-center justify-center gap-2"
+              >
+                👀  What&apos;s That? (point your phone)
+              </button>
+
               {/* Explore nearby — distance picker + named neighborhoods/cities */}
               <div className="glass rounded-2xl px-4 py-3">
                 <button
@@ -771,28 +792,27 @@ export default function Home() {
                   <span className="flex items-center gap-2 font-bold text-base">
                     🧭 Explore nearby
                   </span>
-                  <span
-                    className="text-[10px] transition-transform duration-200"
-                    style={{ display: "inline-block", transform: exploreOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-                  >
-                    ▶
+                  <span className="flex items-center gap-2">
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowRadiusPopup(true);
+                      }}
+                      className="text-xs text-[var(--muted)] hover:text-[var(--gold)] transition font-semibold"
+                    >
+                      {radiusMi} mi · change
+                    </span>
+                    <span
+                      className="text-[10px] transition-transform duration-200"
+                      style={{ display: "inline-block", transform: exploreOpen ? "rotate(90deg)" : "rotate(0deg)" }}
+                    >
+                      ▶
+                    </span>
                   </span>
                 </button>
 
                 {exploreOpen && (
                   <div className="mt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm text-[var(--muted)]">
-                        Within <span className="text-[var(--cream)] font-semibold">{radiusMi} {radiusMi === 1 ? "mile" : "miles"}</span>
-                      </span>
-                      <button
-                        onClick={() => setShowRadiusPopup(true)}
-                        className="text-xs text-[var(--gold)] hover:text-[var(--gold)]/70 transition font-semibold"
-                      >
-                        Change
-                      </button>
-                    </div>
-
                     {placesLoading ? (
                       <p className="text-sm text-[var(--muted)] py-2">{NEARBY_LOADING_LINES[nearbyLineIndex]}</p>
                     ) : places.length === 0 ? (
@@ -847,6 +867,41 @@ export default function Home() {
                   ↺  New Spot
                 </button>
               </div>
+            </div>
+
+            <div className="glass rounded-[28px] p-7 text-left mb-6">
+              <p className="kicker text-[10px] text-[var(--gold)]/80 mb-2">
+                You are here
+              </p>
+              <h2 className="text-2xl font-bold mb-3 font-[family-name:var(--font-display)] leading-tight">
+                {story.placeLabel}
+              </h2>
+              {story.confidence === "low" && (
+                <p className="text-sm text-[var(--muted)] mb-3">
+                  Quiet corner of the map — here&apos;s the broader story.
+                </p>
+              )}
+              <p className="text-[17px] leading-relaxed text-[var(--cream)]">
+                {story.spokenScript}
+              </p>
+              {speaking && (
+                <p className="mt-4 text-sm text-[var(--gold)] flex items-center gap-2">
+                  <span className="inline-flex gap-0.5 items-end h-4">
+                    {[0, 1, 2, 3].map((i) => (
+                      <span
+                        key={i}
+                        className="w-1 bg-[var(--gold)] rounded-full"
+                        style={{
+                          height: "100%",
+                          animation: "twinkle 0.7s ease-in-out infinite",
+                          animationDelay: `${i * 0.12}s`,
+                        }}
+                      />
+                    ))}
+                  </span>
+                  Reading aloud…
+                </p>
+              )}
             </div>
 
             {/* Sources — collapsed by default */}
