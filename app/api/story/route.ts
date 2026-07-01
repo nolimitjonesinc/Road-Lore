@@ -17,10 +17,15 @@ const TTS_VOICE = "Aoede";
 // spot hears a cached narration instead of triggering a fresh Claude +
 // Gemini call. A per-device "heard" table keeps the same phone from getting
 // the same story (or the same landmark) twice.
+//
+// This uses the service-role key (server-only, never NEXT_PUBLIC_*) instead
+// of the public anon key, so writes to the shared pool can only ever happen
+// from this server route — the public key that ships to browsers has no
+// insert access to these tables.
 function supabaseServer() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return url && anon ? createClient(url, anon) : null;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return url && serviceKey ? createClient(url, serviceKey) : null;
 }
 
 function buildWavHeader(

@@ -47,13 +47,12 @@ drop policy if exists "public read shared stories" on roadlore_shared_stories;
 create policy "public read shared stories" on roadlore_shared_stories
   for select using (true);
 
+-- No public INSERT or UPDATE policy: /api/story writes every row using the
+-- service-role key (server-only secret, bypasses RLS entirely), never the
+-- public anon key. That's what stops anyone with the public key — which
+-- ships in the browser bundle by design — from spamming junk into the pool.
+-- Drop any older, looser versions of these policies.
 drop policy if exists "public insert shared stories" on roadlore_shared_stories;
-create policy "public insert shared stories" on roadlore_shared_stories
-  for insert with check (true);
-
--- No public UPDATE policy: /api/story writes each row exactly once (audio
--- is uploaded and the public URL known before the insert happens), so
--- there's never a legitimate update to allow. Drop any older version.
 drop policy if exists "public update shared stories" on roadlore_shared_stories;
 
 -- 3) Per-device "heard" log — stops a phone hearing the same story (or every
@@ -71,6 +70,6 @@ drop policy if exists "public read heard" on roadlore_story_heard;
 create policy "public read heard" on roadlore_story_heard
   for select using (true);
 
+-- No public INSERT here either — /api/story writes heard-log rows with the
+-- service-role key too. Drop any older, looser version.
 drop policy if exists "public insert heard" on roadlore_story_heard;
-create policy "public insert heard" on roadlore_story_heard
-  for insert with check (true);
