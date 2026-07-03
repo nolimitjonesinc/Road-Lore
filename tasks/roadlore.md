@@ -12,8 +12,8 @@
 - [x] Plain-English errors (blocked location, no location, story failure)
 - [x] README + project rules
 - [ ] Add ANTHROPIC_API_KEY locally and confirm `npm run dev` end-to-end
-- [ ] Push to GitHub
-- [ ] Deploy to Vercel + add ANTHROPIC_API_KEY env var
+- [x] Push to GitHub (github.com/nolimitjonesinc/Road-Lore)
+- [x] Deploy to Vercel + add ANTHROPIC_API_KEY env var (live at roadlore.ai)
 - [ ] Test on a real phone outside (real GPS, real story, real voice)
 
 ## v1.1 — Polish (only after v1 is tested)
@@ -23,8 +23,15 @@
 - [x] Cinematic landing redesign (dusk-highway scene, motion, glass UI)
 - [x] App icon (placeholder) + installable manifest + service worker (real PWA)
 - [ ] Tighten Wikipedia results (filter out boring/irrelevant articles)
-- [x] Connect custom domain (roadlore.nolimitjones.com — auto-verified via Vercel DNS)
+- [x] Connect custom domain (roadlore.nolimitjones.com — auto-verified via Vercel DNS; now also live at roadlore.ai)
 - [ ] Evaluate moving to Next.js 16 (clears 2 residual low-risk DoS advisories; breaking change, not urgent for a Vercel-hosted no-image-optimizer app)
+
+## Pre-paywall polish (from 2026-07-03 live review of roadlore.ai) ← DO BEFORE PAYWALL
+
+- [ ] SPEED (biggest win): show the story text as soon as it's written, generate the voice after. Today the server waits for research + writing + voice + audio upload before the phone sees ANYTHING — measured ~30 seconds of a frozen button on a fresh story.
+- [ ] Rotating funny loading lines + progress stages on the MAIN story button ("Found you… reading the archives… waking the narrator…"). Right now it says "Checking what's nearby…" frozen for the entire wait; the funny lines only exist inside Explore nearby.
+- [ ] Readability: buttons/chips are too see-through — the glowing road stripes bleed through the text and make buttons look disabled. Raise panel opacity.
+- [ ] Cut the first-launch radius popup (it blocks the very first impression; default to 5 mi — radius is now changeable everywhere anyway).
 
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 
