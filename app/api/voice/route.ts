@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const AUDIO_BUCKET = "road-lore-audio";
+
+// Server-only Supabase client (service-role key) so this route can file the
+// narration it just generated into the shared story pool. Never NEXT_PUBLIC_*.
+function supabaseServer() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  return url && serviceKey ? createClient(url, serviceKey) : null;
+}
 
 // Turns the story text into a real narrated voice using Gemini TTS — the same
 // free-tier voice engine Loomiverse uses. Gemini returns raw PCM audio, so we
@@ -46,9 +57,11 @@ export async function POST(req: Request) {
   }
 
   let text = "";
+  let storyId = "";
   try {
     const body = await req.json();
     text = String(body.text || "").trim();
+    storyId = typeof body.storyId === "string" ? body.storyId.trim() : "";
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
@@ -92,6 +105,41 @@ export async function POST(req: Request) {
 
     const pcm = Buffer.from(b64, "base64");
     const wav = Buffer.concat([buildWavHeader(pcm.length), pcm]);
+
+    // If this narration belongs to a shared-pool story that has no audio yet,
+    // store it there so the next device near that landmark gets it free.
+    // Guarded: the text must exactly match the row's script and the row must
+    // still be audio-less, so nobody can overwrite pool audio with junk.
+    // Best-effort — a pool hiccup never blocks the playback response.
+    if (storyId) {
+      const sb = supabaseServer();
+      if (sb) {
+        try {
+          const { data: row } = await sb
+            .from("roadlore_shared_stories")
+            .select("id, spoken_script, audio_url")
+            .eq("id", storyId)
+            .maybeSingle();
+          if (row && !row.audio_url && row.spoken_script === text) {
+            const path = `shared/${storyId}.wav`;
+            const { error: upErr } = await sb.storage
+              .from(AUDIO_BUCKET)
+              .upload(path, wav, { contentType: "audio/wav" });
+            if (!upErr) {
+              const { data: pub } = sb.storage.from(AUDIO_BUCKET).getPublicUrl(path);
+              if (pub?.publicUrl) {
+                await sb
+                  .from("roadlore_shared_stories")
+                  .update({ audio_url: pub.publicUrl })
+                  .eq("id", storyId);
+              }
+            }
+          }
+        } catch {
+          /* pool save is best-effort */
+        }
+      }
+    }
 
     return new NextResponse(wav, {
       status: 200,

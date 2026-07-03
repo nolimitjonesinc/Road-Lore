@@ -39,6 +39,7 @@ interface Story {
   confidence: string;
   sources: Source[];
   audioUrl?: string;
+  storyId?: string;
 }
 
 type Phase = "intro" | "idle" | "loading" | "done" | "denied";
@@ -179,7 +180,9 @@ export default function Home() {
       if (saved) {
         setRadiusMi(Number(saved));
       } else {
-        setShowRadiusPopup(true);
+        // First visit: quietly default to 5 mi instead of blocking the very
+        // first impression with a popup — the radius is changeable everywhere.
+        localStorage.setItem(RADIUS_KEY, "5");
       }
     } catch { /* ignore */ }
   }, []);
@@ -207,6 +210,24 @@ export default function Home() {
     }, 2000);
     return () => clearInterval(id);
   }, [audioLoading]);
+
+  // Rotate the funny lines on the MAIN loading button too — before this,
+  // they only ever ran during the (now much shorter) voice wait, so the big
+  // button froze on one phrase for the whole story fetch.
+  const [storyLineIndex, setStoryLineIndex] = useState(-1);
+  useEffect(() => {
+    if (phase !== "loading") {
+      setStoryLineIndex(-1);
+      return;
+    }
+    // Start somewhere random so repeat users don't hear the same jokes in
+    // the same order every single tap.
+    const start = Math.floor(Math.random() * VOICE_LOADING_LINES.length);
+    const id = setInterval(() => {
+      setStoryLineIndex((i) => (i < 0 ? start : (i + 1) % VOICE_LOADING_LINES.length));
+    }, 2400);
+    return () => clearInterval(id);
+  }, [phase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,7 +304,7 @@ export default function Home() {
       // If the server already has this narrated (shared-pool cache hit or a
       // fresh Gemini render it just stored), play that directly — no extra
       // Gemini call. Otherwise it generates audio client-side as before.
-      const audioPromise = speak(data.spokenScript, data.audioUrl);
+      const audioPromise = speak(data.spokenScript, data.audioUrl, data.storyId);
       // Save in the background; don't block narration on it.
       save({
         placeLabel: data.placeLabel,
@@ -641,8 +662,8 @@ export default function Home() {
         {/* Loading */}
         {phase === "loading" && (
           <div className="w-full max-w-sm">
-            <div className="cta w-full text-xl font-extrabold py-8 px-6 opacity-95">
-              {loadingLine}
+            <div className="cta w-full text-lg font-extrabold py-8 px-6 opacity-95">
+              {storyLineIndex >= 0 ? VOICE_LOADING_LINES[storyLineIndex] : loadingLine}
             </div>
             <div className="mt-6 flex justify-center gap-1.5">
               {[0, 1, 2].map((i) => (
@@ -769,83 +790,78 @@ export default function Home() {
             </div>
 
             <div className="flex flex-col gap-3 mb-6">
-              <button
-                onClick={tellMeMore}
-                className="glass w-full rounded-2xl py-4 text-base font-bold text-[var(--gold)] hover:border-[var(--gold)]/40 transition flex items-center justify-center gap-2"
-              >
-                ✨  Tell Me More About Here
-              </button>
-
-              <button
-                onClick={whatsThat}
-                className="glass w-full rounded-2xl py-4 text-base font-bold text-[var(--gold)] hover:border-[var(--gold)]/40 transition flex items-center justify-center gap-2"
-              >
-                👀  What&apos;s That? (point your phone)
-              </button>
-
-              {/* Explore nearby — distance picker + named neighborhoods/cities */}
-              <div className="glass rounded-2xl px-4 py-3">
+              {/* Four ways to pick your next story, one tight grid: this spot,
+                  what's ahead, what's around, what's behind. */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={tellMeMore}
+                  className="glass w-full rounded-2xl py-3 px-2 hover:border-[var(--gold)]/40 transition text-center"
+                >
+                  <span className="block text-base font-bold text-[var(--gold)]">✨ More Here</span>
+                  <span className="block text-[11px] text-[var(--muted)] mt-0.5">same spot, new story</span>
+                </button>
+                <button
+                  onClick={whatsThat}
+                  className="glass w-full rounded-2xl py-3 px-2 hover:border-[var(--gold)]/40 transition text-center"
+                >
+                  <span className="block text-base font-bold text-[var(--gold)]">👀 What&apos;s That?</span>
+                  <span className="block text-[11px] text-[var(--muted)] mt-0.5">point your phone</span>
+                </button>
                 <button
                   onClick={() => setExploreOpen((o) => !o)}
-                  className="flex items-center justify-between w-full text-[var(--cream)]"
+                  className={`glass w-full rounded-2xl py-3 px-2 transition text-center ${
+                    exploreOpen ? "border-[var(--gold)]/60" : "hover:border-[var(--gold)]/40"
+                  }`}
                 >
-                  <span className="flex items-center gap-2 font-bold text-base">
-                    🧭 Explore nearby
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowRadiusPopup(true);
-                      }}
+                  <span className="block text-base font-bold text-[var(--gold)]">🧭 Nearby {exploreOpen ? "▾" : "▸"}</span>
+                  <span className="block text-[11px] text-[var(--muted)] mt-0.5">within {radiusMi} mi</span>
+                </button>
+                <button
+                  onClick={() => setMapOpen(true)}
+                  className="glass w-full rounded-2xl py-3 px-2 hover:border-[var(--gold)]/40 transition text-center"
+                >
+                  <span className="block text-base font-bold text-[var(--gold)]">🗺️ Just Passed</span>
+                  <span className="block text-[11px] text-[var(--muted)] mt-0.5">map what&apos;s behind you</span>
+                </button>
+              </div>
+
+              {/* Explore nearby — expands full-width under the grid */}
+              {exploreOpen && (
+                <div className="glass rounded-2xl px-4 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-bold text-base text-[var(--cream)]">🧭 Explore nearby</span>
+                    <button
+                      onClick={() => setShowRadiusPopup(true)}
                       className="text-xs text-[var(--muted)] hover:text-[var(--gold)] transition font-semibold"
                     >
                       {radiusMi} mi · change
-                    </span>
-                    <span
-                      className="text-[10px] transition-transform duration-200"
-                      style={{ display: "inline-block", transform: exploreOpen ? "rotate(90deg)" : "rotate(0deg)" }}
-                    >
-                      ▶
-                    </span>
-                  </span>
-                </button>
-
-                {exploreOpen && (
-                  <div className="mt-4">
-                    {placesLoading ? (
-                      <p className="text-sm text-[var(--muted)] py-2">{NEARBY_LOADING_LINES[nearbyLineIndex]}</p>
-                    ) : places.length === 0 ? (
-                      <p className="text-sm text-[var(--muted)] py-2">
-                        No named neighborhoods found out here — try a wider distance.
-                      </p>
-                    ) : (
-                      <ul className="flex flex-col gap-2">
-                        {places.map((p) => (
-                          <li key={`${p.name}-${p.lat}`}>
-                            <button
-                              onClick={() => goToPlace(p)}
-                              className="w-full rounded-xl px-4 py-3 flex items-center justify-between bg-white/5 border border-white/10 hover:border-[var(--gold)]/40 transition text-left"
-                            >
-                              <span className="font-semibold text-[var(--cream)]">{p.name}</span>
-                              <span className="text-xs text-[var(--muted)] whitespace-nowrap ml-3">
-                                {(p.distanceMeters / MILES_TO_METERS).toFixed(1)} mi · {p.type}
-                              </span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    </button>
                   </div>
-                )}
-              </div>
-
-              <button
-                onClick={() => setMapOpen(true)}
-                className="glass w-full rounded-2xl py-4 text-base font-bold text-[var(--gold)] hover:border-[var(--gold)]/40 transition flex items-center justify-center gap-2"
-              >
-                🗺️  What Did I Just Pass?
-              </button>
+                  {placesLoading ? (
+                    <p className="text-sm text-[var(--muted)] py-2">{NEARBY_LOADING_LINES[nearbyLineIndex]}</p>
+                  ) : places.length === 0 ? (
+                    <p className="text-sm text-[var(--muted)] py-2">
+                      No named neighborhoods found out here — try a wider distance.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {places.map((p) => (
+                        <li key={`${p.name}-${p.lat}`}>
+                          <button
+                            onClick={() => goToPlace(p)}
+                            className="w-full rounded-xl px-4 py-3 flex items-center justify-between bg-white/5 border border-white/10 hover:border-[var(--gold)]/40 transition text-left"
+                          >
+                            <span className="font-semibold text-[var(--cream)]">{p.name}</span>
+                            <span className="text-xs text-[var(--muted)] whitespace-nowrap ml-3">
+                              {(p.distanceMeters / MILES_TO_METERS).toFixed(1)} mi · {p.type}
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div

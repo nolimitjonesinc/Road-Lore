@@ -293,7 +293,7 @@ body {
 
 /* glass panels */
 .glass {
-  background: rgba(26, 18, 42, 0.55);
+  background: rgba(26, 18, 42, 0.82);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 192, 90, 0.18);

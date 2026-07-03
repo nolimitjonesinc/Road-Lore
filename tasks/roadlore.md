@@ -28,10 +28,11 @@
 
 ## Pre-paywall polish (from 2026-07-03 live review of roadlore.ai) ← DO BEFORE PAYWALL
 
-- [ ] SPEED (biggest win): show the story text as soon as it's written, generate the voice after. Today the server waits for research + writing + voice + audio upload before the phone sees ANYTHING — measured ~30 seconds of a frozen button on a fresh story.
-- [ ] Rotating funny loading lines + progress stages on the MAIN story button ("Found you… reading the archives… waking the narrator…"). Right now it says "Checking what's nearby…" frozen for the entire wait; the funny lines only exist inside Explore nearby.
-- [ ] Readability: buttons/chips are too see-through — the glowing road stripes bleed through the text and make buttons look disabled. Raise panel opacity.
-- [ ] Cut the first-launch radius popup (it blocks the very first impression; default to 5 mi — radius is now changeable everywhere anyway).
+- [x] SPEED (biggest win): story text now returns as soon as it's written; the voice generates right after via /api/voice, which also uploads the narration into the shared pool (was ~30s of frozen button; now text lands as soon as Claude finishes).
+- [x] Rotating funny loading lines on the MAIN story button (random start so repeat taps get different jokes).
+- [x] Readability: glass panels raised from 55% to 82% opacity — road glow no longer bleeds through button text.
+- [x] Cut the first-launch radius popup — quietly defaults to 5 mi; radius still changeable from the idle screen and the Nearby panel.
+- [x] Post-story layout: four action buttons compressed into a 2×2 grid with subtitle hints (More Here / What's That? / Nearby / Just Passed) — story card now visible without scrolling.
 
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 

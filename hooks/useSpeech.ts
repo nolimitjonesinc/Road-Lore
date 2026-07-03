@@ -44,8 +44,10 @@ export function useSpeech() {
 
   // storedUrl: if the story already has audio in Supabase Storage, play that
   // directly. Otherwise generate it with Gemini and return the blob to store.
+  // storyId: shared-pool row this text belongs to — lets /api/voice upload
+  // the narration it generates into the pool for the next traveler.
   const speak = useCallback(
-    async (text: string, storedUrl?: string): Promise<Blob | null> => {
+    async (text: string, storedUrl?: string, storyId?: string): Promise<Blob | null> => {
       stop();
       if (lastUrlRef.current) {
         URL.revokeObjectURL(lastUrlRef.current);
@@ -63,7 +65,7 @@ export function useSpeech() {
         const res = await fetch("/api/voice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text, storyId }),
         });
         const ct = res.headers.get("content-type") || "";
         if (res.ok && ct.includes("audio")) {

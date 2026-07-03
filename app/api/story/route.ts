@@ -9,8 +9,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const AUDIO_BUCKET = "road-lore-audio";
-const TTS_MODEL = "gemini-2.5-flash-preview-tts";
-const TTS_VOICE = "Aoede";
 
 // Every generated story is auto-saved to a shared pool, keyed by the
 // landmark it's about + the chosen vibe, so the next person near the same
@@ -26,31 +24,6 @@ function supabaseServer() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return url && serviceKey ? createClient(url, serviceKey) : null;
-}
-
-function buildWavHeader(
-  pcmByteLength: number,
-  sampleRate = 24000,
-  channels = 1,
-  bitsPerSample = 16
-) {
-  const byteRate = sampleRate * channels * (bitsPerSample / 8);
-  const blockAlign = channels * (bitsPerSample / 8);
-  const buf = Buffer.alloc(44);
-  buf.write("RIFF", 0);
-  buf.writeUInt32LE(36 + pcmByteLength, 4);
-  buf.write("WAVE", 8);
-  buf.write("fmt ", 12);
-  buf.writeUInt32LE(16, 16);
-  buf.writeUInt16LE(1, 20);
-  buf.writeUInt16LE(channels, 22);
-  buf.writeUInt32LE(sampleRate, 24);
-  buf.writeUInt32LE(byteRate, 28);
-  buf.writeUInt16LE(blockAlign, 32);
-  buf.writeUInt16LE(bitsPerSample, 34);
-  buf.write("data", 36);
-  buf.writeUInt32LE(pcmByteLength, 40);
-  return buf;
 }
 
 // Guards against a corrupted/malicious pool row: sources are rendered as
@@ -76,33 +49,6 @@ function safeAudioUrl(url: unknown): string | undefined {
   if (!supabaseUrl) return undefined;
   const prefix = `${supabaseUrl}/storage/v1/object/public/${AUDIO_BUCKET}/`;
   return url.startsWith(prefix) ? url : undefined;
-}
-
-async function synthesizeAudio(text: string): Promise<Buffer | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
-        generationConfig: {
-          responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: TTS_VOICE } } },
-        },
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const b64 = data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!b64) return null;
-    const pcm = Buffer.from(b64, "base64");
-    return Buffer.concat([buildWavHeader(pcm.length), pcm]);
-  } catch {
-    return null;
-  }
 }
 
 export async function POST(req: Request) {
@@ -183,6 +129,9 @@ export async function POST(req: Request) {
           confidence: pick.confidence,
           sources: safeSources(pick.sources),
           audioUrl: safeAudioUrl(pick.audio_url),
+          // If this cached row never got its narration uploaded, the client's
+          // /api/voice call can heal it using this id.
+          storyId: pick.id,
         });
       }
     } catch {
@@ -228,41 +177,32 @@ export async function POST(req: Request) {
     distanceMeters: s.distanceMeters,
   }));
 
-  // 3) Auto-save to the shared pool: narrate it once, store the audio, and
-  // mark it heard for this device — so the next person near this landmark
-  // (and this device's next "Tell Me More") gets it free and instant. The id
-  // is generated up front so audio can upload before the row is written —
-  // one insert, never an update, so the pool table needs no public UPDATE
-  // policy at all.
-  let audioUrl: string | undefined;
+  // 3) Save the script to the shared pool right away — WITHOUT audio — and
+  // return the story text immediately. Narration used to be generated and
+  // uploaded here, which made every fresh story feel frozen for ~30s; now
+  // the client shows the text at once and its follow-up /api/voice call
+  // (carrying this storyId) synthesizes the audio and uploads it into this
+  // row, so the next device near this landmark still gets it free.
+  let storyId: string | undefined;
   if (sb) {
     try {
-      const storyId = randomUUID();
-      const wav = await synthesizeAudio(spokenScript);
-      if (wav) {
-        const path = `shared/${storyId}.wav`;
-        const { error: upErr } = await sb.storage
-          .from(AUDIO_BUCKET)
-          .upload(path, wav, { contentType: "audio/wav" });
-        if (!upErr) {
-          const { data: pub } = sb.storage.from(AUDIO_BUCKET).getPublicUrl(path);
-          audioUrl = pub?.publicUrl;
-        }
-      }
-
+      const id = randomUUID();
       const { error: insertErr } = await sb.from("roadlore_shared_stories").insert({
-        id: storyId,
+        id,
         landmark_key: landmarkKey,
         place_label: ctx.placeLabel,
         mode: modeKey,
         spoken_script: spokenScript,
         confidence,
         sources,
-        audio_url: audioUrl,
+        audio_url: null,
       });
 
-      if (!insertErr && deviceId) {
-        await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: storyId });
+      if (!insertErr) {
+        storyId = id;
+        if (deviceId) {
+          await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: id });
+        }
       }
     } catch {
       // Shared-pool save is best-effort — never block the story response on it.
@@ -275,6 +215,6 @@ export async function POST(req: Request) {
     spokenScript,
     confidence,
     sources,
-    audioUrl,
+    storyId,
   });
 }
