@@ -969,12 +969,21 @@ export default function Home() {
           className="mt-12 flex flex-col items-center gap-3 rise"
           style={{ animationDelay: "0.6s" }}
         >
-          <Link
-            href="/saved"
-            className="text-sm font-semibold text-[var(--gold)]/90 hover:text-[var(--gold)] transition"
-          >
-            ♥ Saved stories
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/saved"
+              className="text-sm font-semibold text-[var(--gold)]/90 hover:text-[var(--gold)] transition"
+            >
+              ♥ Saved stories
+            </Link>
+            <span className="text-[var(--muted)]/40">·</span>
+            <Link
+              href="/blog"
+              className="text-sm font-semibold text-[var(--gold)]/90 hover:text-[var(--gold)] transition"
+            >
+              Blog
+            </Link>
+          </div>
           <p className="text-xs text-[var(--muted)]/60">
             Real places · real history · no made-up facts
           </p>
