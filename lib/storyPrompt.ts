@@ -26,8 +26,9 @@ THE FORMAT:
 - This is read ALOUD. No bullet points, no headings, no emojis, no stage directions.
 - Under 60 seconds spoken — roughly 110-150 words.
 - No driving directions. Don't mention the screen, the app, or "where you are."
+- After the story, on its own final line, write: USED: followed by the exact titles of the source articles you actually drew facts from, separated by " | ". Only list articles you truly used. This line is stripped out before the story is spoken — never reference it in the story itself.
 
-Return only the spoken story — no preamble, no sign-off.`;
+Return the spoken story followed by the USED line — no other preamble or sign-off.`;
 
 // Different lenses on the same place — ensures each tap feels genuinely different
 const STORY_ANGLES = [

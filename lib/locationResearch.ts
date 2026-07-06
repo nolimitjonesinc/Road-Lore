@@ -353,10 +353,17 @@ export async function researchLocation(
     nearbyOsmPois(lat, lon).catch(() => []),
   ]);
 
+  // Wikipedia geotags articles about deaths, crimes, and disasters at the spot
+  // where they happened. Those are real "nearby articles" but wrong material for
+  // a fun road-trip story, so they never enter the candidate pool.
+  const SENSITIVE_TITLE =
+    /^(death|killing|murder|shooting|assassination|suicide|disappearance|kidnapping|lynching) of\b|\b(massacre|bombing|school shooting|mass shooting|terrorist attack|plane crash|train crash|derailment)\b/i;
+  const safeArticles = allArticles.filter((a) => !SENSITIVE_TITLE.test(a.title));
+
   // Sort NEAREST first — this is the fix that makes each pin specific. Dropping
   // the pin on Venice vs. Mar Vista now pulls Venice's vs. Mar Vista's closest
   // landmarks, instead of a shuffled grab-bag from a 10km blob.
-  const byDistance = [...allArticles].sort((a, b) => a.dist - b.dist);
+  const byDistance = [...safeArticles].sort((a, b) => a.dist - b.dist);
   const usedSet = new Set(usedArticles.map((t) => t.toLowerCase()));
   const fresh = byDistance.filter((a) => !usedSet.has(a.title.toLowerCase()));
 

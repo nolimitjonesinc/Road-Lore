@@ -43,6 +43,24 @@ function safeSources(sources: unknown): { title: string; url: string; distanceMe
   });
 }
 
+// The writer ends its output with a "USED: title | title" line naming which
+// source articles it actually drew from. Strip that line from the spoken
+// script and match the named titles back to the researched sources, so the
+// links shown to the user are only the ones the story is really based on.
+// If the marker is missing or matches nothing, fall back to all sources.
+function extractUsedSources<T extends { title: string }>(
+  raw: string,
+  sources: T[]
+): { script: string; usedSources: T[] } {
+  const match = raw.match(/\n\s*USED:\s*([^\n]+)\s*$/i);
+  if (!match || match.index === undefined) return { script: raw.trim(), usedSources: sources };
+  const script = raw.slice(0, match.index).trim();
+  const markerText = match[1].toLowerCase();
+  const used = sources.filter((s) => markerText.includes(s.title.trim().toLowerCase()));
+  if (!script) return { script: raw.trim(), usedSources: sources };
+  return { script, usedSources: used.length > 0 ? used : sources };
+}
+
 function safeAudioUrl(url: unknown): string | undefined {
   if (typeof url !== "string" || !url) return undefined;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -99,7 +117,13 @@ export async function POST(req: Request) {
   }
 
   const modeKey = mode && mode.trim() ? mode.trim() : "surprise";
-  const landmarkKey = (ctx.sources[0]?.title || ctx.placeLabel).trim().toLowerCase();
+  // Pool rows are keyed by the article the story is actually ABOUT (see the
+  // USED-line handling below), so the lookup checks every candidate landmark
+  // near the pin — any of them may already have a cached story.
+  const candidateKeys = [
+    ...ctx.sources.map((s) => s.title.trim().toLowerCase()),
+    ctx.placeLabel.trim().toLowerCase(),
+  ];
   const sb = supabaseServer();
 
   // 1) Try the shared pool first — a cached story this device hasn't heard yet.
@@ -114,7 +138,7 @@ export async function POST(req: Request) {
       const { data: candidates } = await sb
         .from("roadlore_shared_stories")
         .select("*")
-        .eq("landmark_key", landmarkKey)
+        .in("landmark_key", candidateKeys)
         .eq("mode", modeKey)
         .order("created_at", { ascending: false })
         .limit(20);
@@ -170,12 +194,24 @@ export async function POST(req: Request) {
     );
   }
 
+  // Keep only the sources the writer says it actually used. The unused ones
+  // are never shown or marked as "heard" on the device, so they stay available
+  // as fresh material for the next tap.
+  const extracted = extractUsedSources(spokenScript, ctx.sources);
+  spokenScript = extracted.script;
+
   const confidence = ctx.sources.length >= 3 ? "high" : ctx.sources.length >= 1 ? "medium" : "low";
-  const sources = ctx.sources.map((s) => ({
+  const sources = extracted.usedSources.map((s) => ({
     title: s.title,
     url: s.url,
     distanceMeters: s.distanceMeters,
   }));
+
+  // Key the pool row by the article the story is actually about, so the next
+  // device nearby matches it to the right landmark.
+  const landmarkKey = (extracted.usedSources[0]?.title || ctx.sources[0]?.title || ctx.placeLabel)
+    .trim()
+    .toLowerCase();
 
   // 3) Save the script to the shared pool right away — WITHOUT audio — and
   // return the story text immediately. Narration used to be generated and

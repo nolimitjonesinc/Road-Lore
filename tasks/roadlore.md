@@ -33,6 +33,9 @@
 - [x] Readability: glass panels raised from 55% to 82% opacity — road glow no longer bleeds through button text.
 - [x] Cut the first-launch radius popup — quietly defaults to 5 mi; radius still changeable from the idle screen and the Nearby panel.
 - [x] Post-story layout: four action buttons compressed into a 2×2 grid with subtitle hints (More Here / What's That? / Nearby / Just Passed) — story card now visible without scrolling.
+- [x] HONEST SOURCES: the writer now reports which articles it actually used (trailing USED: line, stripped before speaking); only those show as source links and only those get marked "heard" — the other researched articles stay fresh for the next tap (4× more stories per neighborhood). Shared-pool rows are now keyed by the article the story is ABOUT, and lookups match any nearby candidate landmark.
+- [x] SENSITIVE-ARTICLE FILTER: Wikipedia articles about deaths, killings, crashes, and attacks (geotagged where they happened) are excluded from story material and source lists entirely.
+- [ ] Wipe the shared story pool + heard log once after this deploys — old cached rows still carry the old 4-link source lists (awaiting DJ's go).
 
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 
