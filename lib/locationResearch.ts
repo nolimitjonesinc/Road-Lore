@@ -251,14 +251,21 @@ export async function nearbyMapPois(
   way["historic"](around:${r},${lat},${lon});
   node["tourism"~"museum|attraction|artwork|viewpoint|gallery"](around:${r},${lat},${lon});
   way["tourism"~"museum|attraction|artwork|viewpoint|gallery"](around:${r},${lat},${lon});
-  node["leisure"~"park|nature_reserve"](around:${r},${lat},${lon});
-  way["leisure"~"park|nature_reserve"](around:${r},${lat},${lon});
+  node["leisure"~"park|nature_reserve|stadium|marina|garden|golf_course"](around:${r},${lat},${lon});
+  way["leisure"~"park|nature_reserve|stadium|marina|garden|golf_course"](around:${r},${lat},${lon});
   node["natural"~"water|beach"](around:${r},${lat},${lon});
   way["natural"~"water|beach"](around:${r},${lat},${lon});
-  node["amenity"="place_of_worship"]["name"](around:${r},${lat},${lon});
-  node["man_made"~"lighthouse|windmill"](around:${r},${lat},${lon});
+  node["amenity"~"place_of_worship|school|university|college|library|theatre|cinema|townhall|community_centre|marketplace|fountain"]["name"](around:${r},${lat},${lon});
+  way["amenity"~"place_of_worship|school|university|college|library|theatre|cinema|townhall|community_centre|marketplace"]["name"](around:${r},${lat},${lon});
+  node["man_made"~"lighthouse|windmill|pier|water_tower"](around:${r},${lat},${lon});
+  way["man_made"~"pier"](around:${r},${lat},${lon});
+  node["railway"="station"]["name"](around:${r},${lat},${lon});
+  node["aeroway"="aerodrome"]["name"](around:${r},${lat},${lon});
+  way["aeroway"="aerodrome"]["name"](around:${r},${lat},${lon});
+  node["landuse"="cemetery"]["name"](around:${r},${lat},${lon});
+  way["landuse"="cemetery"]["name"](around:${r},${lat},${lon});
 );
-out center body 40;
+out center body 60;
   `.trim();
 
   const data = await fetchOverpass(query);
@@ -273,10 +280,40 @@ out center body 40;
     let type = "place";
     if (tags.historic) type = tags.historic === "yes" ? "historic site" : tags.historic;
     else if (tags.tourism) type = tags.tourism;
-    else if (tags.leisure) type = tags.leisure === "park" ? "park" : "nature reserve";
+    else if (tags.leisure)
+      type =
+        (
+          {
+            park: "park",
+            nature_reserve: "nature reserve",
+            stadium: "stadium",
+            marina: "marina",
+            garden: "garden",
+            golf_course: "golf course",
+          } as Record<string, string>
+        )[tags.leisure] || tags.leisure;
     else if (tags.natural) type = tags.natural === "water" ? "lake / water" : "beach";
-    else if (tags.amenity === "place_of_worship") type = "place of worship";
-    else if (tags.man_made) type = tags.man_made;
+    else if (tags.amenity)
+      type =
+        (
+          {
+            place_of_worship: "place of worship",
+            school: "school",
+            university: "university",
+            college: "college",
+            library: "library",
+            theatre: "theater",
+            cinema: "movie theater",
+            townhall: "town hall",
+            community_centre: "community center",
+            marketplace: "market",
+            fountain: "fountain",
+          } as Record<string, string>
+        )[tags.amenity] || tags.amenity.replace(/_/g, " ");
+    else if (tags.railway === "station") type = "train station";
+    else if (tags.aeroway) type = "airport";
+    else if (tags.landuse === "cemetery") type = "cemetery";
+    else if (tags.man_made) type = tags.man_made === "water_tower" ? "water tower" : tags.man_made;
 
     const poiLat = elem.center?.lat || elem.lat;
     const poiLon = elem.center?.lon || elem.lon;

@@ -14,6 +14,7 @@ import type { MapPoi } from "./mapExplorer";
 const MapExplorer = dynamic(() => import("./mapExplorer"), { ssr: false });
 
 const MAP_RADIUS_METERS = 305; // ~1000ft
+const MAP_WIDE_RADIUS_METERS = 1100; // ~2/3 mi fallback when the tight circle is empty
 
 interface NearbyPlace {
   name: string;
@@ -170,9 +171,11 @@ export default function Home() {
   const [nearbyLineIndex, setNearbyLineIndex] = useState(0);
   const [showRadiusPopup, setShowRadiusPopup] = useState(false);
   // Tappable map of what's within ~1000ft of where the user was standing.
+  // If the tight circle finds nothing, the search auto-widens once (~2/3 mi).
   const [mapOpen, setMapOpen] = useState(false);
   const [mapPois, setMapPois] = useState<MapPoi[]>([]);
   const [mapLoading, setMapLoading] = useState(false);
+  const [mapRadius, setMapRadius] = useState(MAP_RADIUS_METERS);
 
   useEffect(() => {
     try {
@@ -466,8 +469,14 @@ export default function Home() {
     };
   }, [exploreOpen, radiusMi, coords]);
 
-  // Load real nearby map pins whenever the map is open — pulls whatever's
-  // within ~1000ft of where the user was standing when they tapped it.
+  // Reset to the tight circle each time the map opens.
+  useEffect(() => {
+    if (mapOpen) setMapRadius(MAP_RADIUS_METERS);
+  }, [mapOpen]);
+
+  // Load real nearby map pins whenever the map is open — starts at ~1000ft of
+  // where the user was standing; if that finds nothing, widens once to ~2/3 mi
+  // (bumping mapRadius re-runs this effect) instead of dead-ending.
   useEffect(() => {
     if (!mapOpen || !coords) return;
     let cancelled = false;
@@ -479,12 +488,18 @@ export default function Home() {
       body: JSON.stringify({
         latitude: coords.lat,
         longitude: coords.lon,
-        radiusMeters: MAP_RADIUS_METERS,
+        radiusMeters: mapRadius,
       }),
     })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled) setMapPois(data.pois || []);
+        if (cancelled) return;
+        const pois = data.pois || [];
+        if (pois.length === 0 && mapRadius === MAP_RADIUS_METERS) {
+          setMapRadius(MAP_WIDE_RADIUS_METERS);
+          return;
+        }
+        setMapPois(pois);
       })
       .catch(() => {
         if (!cancelled) setMapPois([]);
@@ -495,7 +510,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [mapOpen, coords]);
+  }, [mapOpen, coords, mapRadius]);
 
   // Tell a story about a pin tapped on the map. Re-locks coords AND name so
   // "Tell Me More" keeps riffing on that exact spot.
@@ -545,7 +560,7 @@ export default function Home() {
                 What Did I Just Pass?
               </h2>
               <p className="text-xs text-[var(--muted)]">
-                Tap a pin — real spots within ~1000ft of where you tapped.
+                Tap a pin — real spots near where you tapped.
               </p>
             </div>
             <button
@@ -559,18 +574,25 @@ export default function Home() {
           <div className="relative flex-1">
             <MapExplorer
               center={coords}
-              radiusMeters={MAP_RADIUS_METERS}
+              radiusMeters={mapRadius}
               pois={mapPois}
               onPick={goToMapPoi}
             />
             {mapLoading && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-[var(--cream)] z-[1000]">
-                Scanning what's nearby…
+                {mapRadius > MAP_RADIUS_METERS
+                  ? "Nothing right here — widening the search…"
+                  : "Scanning what's nearby…"}
               </div>
             )}
             {!mapLoading && mapPois.length === 0 && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-[var(--muted)] z-[1000]">
-                Nothing named found this close — try a spot with more nearby landmarks.
+                Nothing named found even after widening — try a spot with more nearby landmarks.
+              </div>
+            )}
+            {!mapLoading && mapPois.length > 0 && mapRadius > MAP_RADIUS_METERS && (
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-[var(--muted)] z-[1000]">
+                Nothing within 1000ft — showing a wider circle.
               </div>
             )}
           </div>

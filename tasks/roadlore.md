@@ -35,7 +35,8 @@
 - [x] Post-story layout: four action buttons compressed into a 2×2 grid with subtitle hints (More Here / What's That? / Nearby / Just Passed) — story card now visible without scrolling.
 - [x] HONEST SOURCES: the writer now reports which articles it actually used (trailing USED: line, stripped before speaking); only those show as source links and only those get marked "heard" — the other researched articles stay fresh for the next tap (4× more stories per neighborhood). Shared-pool rows are now keyed by the article the story is ABOUT, and lookups match any nearby candidate landmark.
 - [x] SENSITIVE-ARTICLE FILTER: Wikipedia articles about deaths, killings, crashes, and attacks (geotagged where they happened) are excluded from story material and source lists entirely.
-- [ ] Wipe the shared story pool + heard log once after this deploys — old cached rows still carry the old 4-link source lists (awaiting DJ's go).
+- [x] Wipe the shared story pool + heard log once after this deploys — old cached rows still carry the old 4-link source lists (DJ wiped tables + audio bucket himself 2026-07-06).
+- [x] MAP PINS: "What's That?" map now finds schools, universities, libraries, theaters, stadiums, marinas, gardens, train stations, cemeteries, markets, piers + more (was only historic/museum/park/water/church/lighthouse — DJ's school example was invisible). If the ~1000ft circle is empty it auto-widens once to ~2/3 mi with an honest banner instead of dead-ending.
 
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 
