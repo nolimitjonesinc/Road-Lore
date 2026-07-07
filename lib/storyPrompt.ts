@@ -86,7 +86,12 @@ export function angleForMode(mode?: string): string {
   return pickStoryAngle();
 }
 
-export function buildUserMessage(ctx: LocationContext, angle: string, lookAhead = false): string {
+export function buildUserMessage(
+  ctx: LocationContext,
+  angle: string,
+  lookAhead = false,
+  recentStories: string[] = []
+): string {
   const lines: string[] = [];
   lines.push(`THE PLACE: ${ctx.placeLabel}`);
   if (ctx.region) lines.push(`REGION: ${ctx.region}`);
@@ -117,6 +122,19 @@ export function buildUserMessage(ctx: LocationContext, angle: string, lookAhead 
           : `${(s.distanceMeters / 1000).toFixed(1)} km away`;
       lines.push(`\n--- ${s.title} (${dist}) ---`);
       lines.push(s.summary);
+    });
+  }
+
+  if (recentStories.length > 0) {
+    lines.push("");
+    lines.push(
+      "STORIES THIS LISTENER ALREADY HEARD — hard rule: do NOT retell these facts, people, or events, " +
+        "even reworded or from a different angle. Nearby articles repeat each other's history; your job is " +
+        "to find material NOT covered below. If everything overlaps, pick the one thread they haven't heard."
+    );
+    recentStories.forEach((s, i) => {
+      lines.push(`\n[Already heard #${i + 1}]`);
+      lines.push(s);
     });
   }
 

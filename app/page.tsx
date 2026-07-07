@@ -135,6 +135,22 @@ function projectAhead(lat: number, lon: number, headingDeg: number, distanceMile
 function getUsedArticles(): string[] {
   try { return JSON.parse(localStorage.getItem(USED_KEY) || "[]"); } catch { return []; }
 }
+
+// The last few stories this device heard, sent with each request so the
+// writer can avoid retelling the same facts in a new costume. Neighborhood
+// Wikipedia articles overlap heavily — skipping used articles alone doesn't
+// stop "the same story five different ways."
+const RECENT_KEY = "rl_recent_stories";
+function getRecentStories(): string[] {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; }
+}
+function saveRecentStory(script: string) {
+  try {
+    const list = getRecentStories();
+    list.push(script.slice(0, 1000));
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(-5)));
+  } catch { /* ignore */ }
+}
 function saveUsedArticles(titles: string[]) {
   try {
     const existing = getUsedArticles();
@@ -280,6 +296,7 @@ export default function Home() {
           latitude,
           longitude,
           usedArticles: getUsedArticles(),
+          recentStories: getRecentStories(),
           mode: mode ?? selectedMode,
           placeName: placeName ?? undefined,
           lookAhead: lookAhead ?? false,
@@ -297,6 +314,8 @@ export default function Home() {
       try { localStorage.setItem(LOC_KEY, "1"); } catch { /* ignore */ }
       // Track which articles were used so the next story gets different topics.
       if (data.sources?.length) saveUsedArticles(data.sources.map((s: {title: string}) => s.title));
+      // Remember this story so the writer won't retell its facts next tap.
+      if (data.spokenScript) saveRecentStory(data.spokenScript);
       setStory(data);
       setSaved(false);
       setSaving(true);

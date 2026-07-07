@@ -78,12 +78,17 @@ export async function POST(req: Request) {
     );
   }
 
-  let lat: number, lon: number, usedArticles: string[], mode: string | undefined, placeName: string | undefined, lookAhead: boolean, deviceId: string | undefined;
+  let lat: number, lon: number, usedArticles: string[], recentStories: string[], mode: string | undefined, placeName: string | undefined, lookAhead: boolean, deviceId: string | undefined;
   try {
     const body = await req.json();
     lat = Number(body.latitude);
     lon = Number(body.longitude);
     usedArticles = Array.isArray(body.usedArticles) ? body.usedArticles.map(String) : [];
+    // Recent stories this device heard — capped hard so a hostile client
+    // can't stuff the prompt.
+    recentStories = Array.isArray(body.recentStories)
+      ? body.recentStories.slice(0, 5).map((s: unknown) => String(s).slice(0, 1200))
+      : [];
     mode = typeof body.mode === "string" ? body.mode : undefined;
     placeName = typeof body.placeName === "string" && body.placeName.trim() ? body.placeName.trim() : undefined;
     lookAhead = body.lookAhead === true;
@@ -173,7 +178,7 @@ export async function POST(req: Request) {
       model: "claude-sonnet-4-6",
       max_tokens: 600,
       system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildUserMessage(ctx, angle, lookAhead) }],
+      messages: [{ role: "user", content: buildUserMessage(ctx, angle, lookAhead, recentStories) }],
     });
     spokenScript = msg.content
       .filter((b) => b.type === "text")
@@ -222,6 +227,25 @@ export async function POST(req: Request) {
   let storyId: string | undefined;
   if (sb) {
     try {
+      // Cap the pool at 5 stories per landmark+vibe. Under the cap, distinct
+      // takes are healthy variety for future listeners; past it, extra rows
+      // are just clutter. The requester still gets their fresh story either
+      // way — it just isn't hoarded.
+      const { count } = await sb
+        .from("roadlore_shared_stories")
+        .select("id", { count: "exact", head: true })
+        .eq("landmark_key", landmarkKey)
+        .eq("mode", modeKey);
+      if ((count ?? 0) >= 5) {
+        return NextResponse.json({
+          title: `Where the road dropped you: ${ctx.placeLabel}`,
+          placeLabel: ctx.placeLabel,
+          spokenScript,
+          confidence,
+          sources,
+        });
+      }
+
       const id = randomUUID();
       const { error: insertErr } = await sb.from("roadlore_shared_stories").insert({
         id,
