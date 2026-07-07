@@ -120,9 +120,16 @@ export default function MapExplorer({
       poiMarkersRef.current.forEach((m) => m.remove());
       poiMarkersRef.current = pois.map((p) => {
         const el = document.createElement("div");
-        el.textContent = "📌";
-        el.style.fontSize = "26px";
+        // The RoadLore logo — a gold speech bubble with a pin tail — as an
+        // inline SVG so it stays crisp at any zoom and needs no image file.
+        el.innerHTML =
+          '<svg width="34" height="36" viewBox="0 0 34 36" aria-hidden="true">' +
+          '<path d="M17 2 C9 2 3.5 7 3.5 13.5 c0 5.5 4.5 9.5 9.5 10.5 L17 32 l4-8 c5-1 9.5-5 9.5-10.5 C30.5 7 25 2 17 2 Z" ' +
+          'fill="#e8b769" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>' +
+          '<ellipse cx="12.5" cy="10" rx="4" ry="2.5" fill="#f6d9a0" opacity="0.55" transform="rotate(-25 12.5 10)"/>' +
+          "</svg>";
         el.style.cursor = "pointer";
+        el.style.lineHeight = "0";
         el.style.filter = "drop-shadow(0 2px 3px rgba(0,0,0,.6))";
         el.addEventListener("click", () => onPick(p));
         return new maplibregl.Marker({ element: el, anchor: "bottom" })
