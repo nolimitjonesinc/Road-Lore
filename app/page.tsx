@@ -13,8 +13,8 @@ import type { MapPoi } from "./mapExplorer";
 // Leaflet touches window at import time, so it can only load in the browser.
 const MapExplorer = dynamic(() => import("./mapExplorer"), { ssr: false });
 
-const MAP_RADIUS_METERS = 305; // ~1000ft
-const MAP_WIDE_RADIUS_METERS = 1100; // ~2/3 mi fallback when the tight circle is empty
+const MAP_RADIUS_METERS = 762; // ~2500ft
+const MAP_WIDE_RADIUS_METERS = 1609; // ~1 mi fallback when the tight circle is empty
 
 interface NearbyPlace {
   name: string;
@@ -170,7 +170,7 @@ export default function Home() {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [nearbyLineIndex, setNearbyLineIndex] = useState(0);
   const [showRadiusPopup, setShowRadiusPopup] = useState(false);
-  // Tappable map of what's within ~1000ft of where the user was standing.
+  // Tappable map of what's within ~2500ft of where the user was standing.
   // If the tight circle finds nothing, the search auto-widens once (~2/3 mi).
   const [mapOpen, setMapOpen] = useState(false);
   const [mapPois, setMapPois] = useState<MapPoi[]>([]);
@@ -474,7 +474,7 @@ export default function Home() {
     if (mapOpen) setMapRadius(MAP_RADIUS_METERS);
   }, [mapOpen]);
 
-  // Load real nearby map pins whenever the map is open — starts at ~1000ft of
+  // Load real nearby map pins whenever the map is open — starts at ~2500ft of
   // where the user was standing; if that finds nothing, widens once to ~2/3 mi
   // (bumping mapRadius re-runs this effect) instead of dead-ending.
   useEffect(() => {
@@ -592,7 +592,7 @@ export default function Home() {
             )}
             {!mapLoading && mapPois.length > 0 && mapRadius > MAP_RADIUS_METERS && (
               <div className="absolute top-3 left-1/2 -translate-x-1/2 glass rounded-full px-4 py-2 text-sm text-[var(--muted)] z-[1000]">
-                Nothing within 1000ft — showing a wider circle.
+                Nothing within 2500ft — showing a wider circle.
               </div>
             )}
           </div>

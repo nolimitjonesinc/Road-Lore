@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     lat = Number(body.latitude);
     lon = Number(body.longitude);
-    radiusMeters = Number(body.radiusMeters) || 305; // ~1000ft
+    radiusMeters = Number(body.radiusMeters) || 762; // ~2500ft
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
