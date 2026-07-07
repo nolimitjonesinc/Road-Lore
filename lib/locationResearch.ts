@@ -93,6 +93,89 @@ async function articleFullIntro(
   }
 }
 
+// Step 3a: pull the WHOLE article as plain text (intro + History + everything),
+// capped to keep the prompt sane. Used only for the ANCHOR article — the one
+// the story is actually about — so the writer sees the deep cuts (the
+// "Splinterville" tent campus, the $10,197 land buy), not just the resume line.
+const DEEP_READ_CHARS = 7000;
+async function articleDeepRead(
+  title: string
+): Promise<{ summary: string; url: string } | null> {
+  try {
+    const url =
+      `https://en.wikipedia.org/w/api.php?action=query&prop=extracts` +
+      `&explaintext=true&exlimit=1` +
+      `&titles=${encodeURIComponent(title)}&format=json&redirects=1`;
+    const data = await fetchJson(url);
+    const pages = data?.query?.pages;
+    if (!pages) return null;
+    const page = Object.values(pages)[0] as any;
+    if (!page || page.missing !== undefined || !page.extract?.trim()) return null;
+    let text = page.extract.trim();
+    if (text.length > DEEP_READ_CHARS) {
+      // Cut at a paragraph boundary so we don't hand the writer half a sentence.
+      const cut = text.slice(0, DEEP_READ_CHARS);
+      text = cut.slice(0, cut.lastIndexOf("\n") > 2000 ? cut.lastIndexOf("\n") : DEEP_READ_CHARS);
+    }
+    return {
+      summary: text,
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, "_"))}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Step 3a½: find an article by NAME (for tapped map pins). Coordinate search
+// misses the exact article for a named place when other articles sit closer,
+// so ask Wikipedia's search engine for the title and keep it only if the
+// article is geotagged within ~30km (kills same-name places in other states).
+async function findArticleByName(
+  name: string,
+  lat: number,
+  lon: number
+): Promise<string | null> {
+  try {
+    const searchUrl =
+      `https://en.wikipedia.org/w/api.php?action=query&list=search` +
+      `&srsearch=${encodeURIComponent(name)}&srlimit=5&format=json`;
+    const data = await fetchJson(searchUrl);
+    const hits: { title: string }[] = data?.query?.search || [];
+    if (!hits.length) return null;
+
+    // The hit must actually BE this place, not a nearby cousin ("Short
+    // Elementary School" must not match "Venice High School"): every
+    // distinctive word of the tapped name has to appear in the title.
+    const distinctive = name
+      .toLowerCase()
+      .split(/[^a-z0-9']+/)
+      .filter((w) => w.length > 2 && !["the", "and", "of"].includes(w));
+    const titles = hits
+      .map((h) => h.title)
+      .filter((t) => {
+        const tl = t.toLowerCase();
+        return distinctive.length > 0 && distinctive.every((w) => tl.includes(w));
+      })
+      .slice(0, 5);
+    if (!titles.length) return null;
+    const coordUrl =
+      `https://en.wikipedia.org/w/api.php?action=query&prop=coordinates` +
+      `&titles=${encodeURIComponent(titles.join("|"))}&format=json&redirects=1`;
+    const coordData = await fetchJson(coordUrl);
+    const pages = coordData?.query?.pages || {};
+    const nearby = new Set<string>();
+    for (const p of Object.values(pages) as any[]) {
+      const c = p?.coordinates?.[0];
+      if (!c) continue;
+      if (calculateDistance(lat, lon, c.lat, c.lon) <= 30000) nearby.add(p.title);
+    }
+    // Keep Wikipedia's relevance order; take the best hit that's actually local.
+    return titles.find((t) => nearby.has(t)) || null;
+  } catch {
+    return null;
+  }
+}
+
 // Step 3b: pull the REAL "Notable residents / people" list from an article.
 // Landmark intros never say who lived somewhere — this section does, and it's
 // sourced. Catches both a town's famous residents and a school's notable alumni.
@@ -408,11 +491,30 @@ export async function researchLocation(
   // skipping leaves too few. Repeat taps thus walk outward from the pin.
   const candidates = fresh.length >= 3 ? fresh : byDistance;
 
-  // Pull full intro sections for the 4 closest candidates (richer than summary API)
-  const top = candidates.slice(0, 4);
+  let top = candidates.slice(0, 4);
+
+  // When the user tapped a NAMED pin (school, church, park…), look its article
+  // up by name — coordinate search can bury the exact article behind closer
+  // ones. If found, it becomes the anchor at the front of the list.
+  if (placeNameOverride?.trim()) {
+    const named = await findArticleByName(placeNameOverride.trim(), lat, lon);
+    if (
+      named &&
+      !SENSITIVE_TITLE.test(named) &&
+      !usedSet.has(named.toLowerCase())
+    ) {
+      top = [
+        { title: named, dist: 0 },
+        ...top.filter((a) => a.title.toLowerCase() !== named.toLowerCase()),
+      ].slice(0, 4);
+    }
+  }
+
+  // The ANCHOR (first article) gets a deep read — the whole page, History and
+  // all. The rest get intro sections. This is where story depth comes from.
   const summaries = await Promise.all(
-    top.map(async (a) => {
-      const s = await articleFullIntro(a.title);
+    top.map(async (a, i) => {
+      const s = i === 0 ? (await articleDeepRead(a.title)) || (await articleFullIntro(a.title)) : await articleFullIntro(a.title);
       if (!s) return null;
       return {
         title: a.title,
