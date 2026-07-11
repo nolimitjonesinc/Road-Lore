@@ -131,7 +131,19 @@ export async function POST(req: Request) {
     ctx.placeLabel.trim().toLowerCase(),
   ];
   const sb = supabaseServer();
-  const debug = new URL(req.url).searchParams.get("debug") === "1";
+  // Temporary diagnostic, gated behind a secret token (no raw secrets or error
+  // text returned) — removed once the shared-pool write issue is resolved.
+  const debug = new URL(req.url).searchParams.get("debug") === "rl-diag-7x9";
+  let keyRole = "unknown";
+  if (debug) {
+    try {
+      const k = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+      const payload = JSON.parse(Buffer.from(k.split(".")[1] || "", "base64").toString());
+      keyRole = String(payload.role || "no-role-claim");
+    } catch {
+      keyRole = "undecodable";
+    }
+  }
   let diag: Record<string, unknown> | undefined;
 
   // 1) Try the shared pool first — a cached story this device hasn't heard yet.
@@ -246,7 +258,7 @@ export async function POST(req: Request) {
           spokenScript,
           confidence,
           sources,
-          ...(debug ? { _diag: { sbConnected: true, count, countErr: countErr?.message ?? null, cappedOut: true } } : {}),
+          ...(debug ? { _diag: { sbConnected: true, keyRole, count, cappedOut: true } } : {}),
         });
       }
 
@@ -262,7 +274,7 @@ export async function POST(req: Request) {
         audio_url: null,
       });
 
-      if (debug) diag = { sbConnected: true, count: count ?? 0, countErr: countErr?.message ?? null, insertErr: insertErr?.message ?? null };
+      if (debug) diag = { sbConnected: true, keyRole, count: count ?? 0, countFailed: !!countErr, insertFailed: !!insertErr, insertCode: insertErr?.code ?? null };
 
       if (!insertErr) {
         storyId = id;
