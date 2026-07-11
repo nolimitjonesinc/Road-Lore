@@ -131,6 +131,8 @@ export async function POST(req: Request) {
     ctx.placeLabel.trim().toLowerCase(),
   ];
   const sb = supabaseServer();
+  const debug = new URL(req.url).searchParams.get("debug") === "1";
+  let diag: Record<string, unknown> | undefined;
 
   // 1) Try the shared pool first — a cached story this device hasn't heard yet.
   if (sb && deviceId) {
@@ -232,7 +234,7 @@ export async function POST(req: Request) {
       // takes are healthy variety for future listeners; past it, extra rows
       // are just clutter. The requester still gets their fresh story either
       // way — it just isn't hoarded.
-      const { count } = await sb
+      const { count, error: countErr } = await sb
         .from("roadlore_shared_stories")
         .select("id", { count: "exact", head: true })
         .eq("landmark_key", landmarkKey)
@@ -244,6 +246,7 @@ export async function POST(req: Request) {
           spokenScript,
           confidence,
           sources,
+          ...(debug ? { _diag: { sbConnected: true, count, countErr: countErr?.message ?? null, cappedOut: true } } : {}),
         });
       }
 
@@ -259,15 +262,20 @@ export async function POST(req: Request) {
         audio_url: null,
       });
 
+      if (debug) diag = { sbConnected: true, count: count ?? 0, countErr: countErr?.message ?? null, insertErr: insertErr?.message ?? null };
+
       if (!insertErr) {
         storyId = id;
         if (deviceId) {
           await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: id });
         }
       }
-    } catch {
+    } catch (e) {
       // Shared-pool save is best-effort — never block the story response on it.
+      if (debug) diag = { sbConnected: true, threw: String(e) };
     }
+  } else if (debug) {
+    diag = { sbConnected: false };
   }
 
   return NextResponse.json({
@@ -277,5 +285,6 @@ export async function POST(req: Request) {
     confidence,
     sources,
     storyId,
+    ...(diag ? { _diag: diag } : {}),
   });
 }
