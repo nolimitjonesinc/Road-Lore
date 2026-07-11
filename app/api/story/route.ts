@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 import { researchLocation } from "@/lib/locationResearch";
 import { SYSTEM_PROMPT, buildUserMessage, angleForMode } from "@/lib/storyPrompt";
+import { SUPABASE_URL } from "@/lib/supabaseConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ const AUDIO_BUCKET = "road-lore-audio";
 // from this server route — the public key that ships to browsers has no
 // insert access to these tables.
 function supabaseServer() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return url && serviceKey ? createClient(url, serviceKey) : null;
 }
@@ -63,7 +64,7 @@ function extractUsedSources<T extends { title: string }>(
 
 function safeAudioUrl(url: unknown): string | undefined {
   if (typeof url !== "string" || !url) return undefined;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = SUPABASE_URL;
   if (!supabaseUrl) return undefined;
   const prefix = `${supabaseUrl}/storage/v1/object/public/${AUDIO_BUCKET}/`;
   return url.startsWith(prefix) ? url : undefined;

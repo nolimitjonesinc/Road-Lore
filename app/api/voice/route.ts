@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { SUPABASE_URL } from "@/lib/supabaseConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ const AUDIO_BUCKET = "road-lore-audio";
 // Server-only Supabase client (service-role key) so this route can file the
 // narration it just generated into the shared story pool. Never NEXT_PUBLIC_*.
 function supabaseServer() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return url && serviceKey ? createClient(url, serviceKey) : null;
 }
