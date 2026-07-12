@@ -73,3 +73,11 @@ create policy "public read heard" on roadlore_story_heard
 -- No public INSERT here either — /api/story writes heard-log rows with the
 -- service-role key too. Drop any older, looser version.
 drop policy if exists "public insert heard" on roadlore_story_heard;
+
+-- 4) Table-level grants for the service role. RLS is bypassed by service_role,
+--    but Postgres still requires the underlying table GRANT — if that ever gets
+--    revoked (e.g. a lockdown migration), the server's writes fail with
+--    "permission denied for table" (SQLSTATE 42501) even though the key and
+--    RLS are correct. These grants make the write path explicit and idempotent.
+grant all privileges on table roadlore_shared_stories to service_role;
+grant all privileges on table roadlore_story_heard to service_role;

@@ -131,20 +131,6 @@ export async function POST(req: Request) {
     ctx.placeLabel.trim().toLowerCase(),
   ];
   const sb = supabaseServer();
-  // Temporary diagnostic, gated behind a secret token (no raw secrets or error
-  // text returned) — removed once the shared-pool write issue is resolved.
-  const debug = new URL(req.url).searchParams.get("debug") === "rl-diag-7x9";
-  let keyRole = "unknown";
-  if (debug) {
-    try {
-      const k = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-      const payload = JSON.parse(Buffer.from(k.split(".")[1] || "", "base64").toString());
-      keyRole = String(payload.role || "no-role-claim");
-    } catch {
-      keyRole = "undecodable";
-    }
-  }
-  let diag: Record<string, unknown> | undefined;
 
   // 1) Try the shared pool first — a cached story this device hasn't heard yet.
   if (sb && deviceId) {
@@ -246,7 +232,7 @@ export async function POST(req: Request) {
       // takes are healthy variety for future listeners; past it, extra rows
       // are just clutter. The requester still gets their fresh story either
       // way — it just isn't hoarded.
-      const { count, error: countErr } = await sb
+      const { count } = await sb
         .from("roadlore_shared_stories")
         .select("id", { count: "exact", head: true })
         .eq("landmark_key", landmarkKey)
@@ -258,7 +244,6 @@ export async function POST(req: Request) {
           spokenScript,
           confidence,
           sources,
-          ...(debug ? { _diag: { sbConnected: true, keyRole, count, cappedOut: true } } : {}),
         });
       }
 
@@ -274,20 +259,15 @@ export async function POST(req: Request) {
         audio_url: null,
       });
 
-      if (debug) diag = { sbConnected: true, keyRole, count: count ?? 0, countFailed: !!countErr, insertFailed: !!insertErr, insertCode: insertErr?.code ?? null };
-
       if (!insertErr) {
         storyId = id;
         if (deviceId) {
           await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: id });
         }
       }
-    } catch (e) {
+    } catch {
       // Shared-pool save is best-effort — never block the story response on it.
-      if (debug) diag = { sbConnected: true, threw: String(e) };
     }
-  } else if (debug) {
-    diag = { sbConnected: false };
   }
 
   return NextResponse.json({
@@ -297,6 +277,5 @@ export async function POST(req: Request) {
     confidence,
     sources,
     storyId,
-    ...(diag ? { _diag: diag } : {}),
   });
 }
