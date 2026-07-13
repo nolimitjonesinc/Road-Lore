@@ -697,9 +697,12 @@ export default function Home() {
             </button>
             <button
               onClick={() => setShowRadiusPopup(true)}
-              className="relative z-10 mt-4 text-sm text-[var(--muted)] hover:text-[var(--gold)] transition font-semibold"
+              className="relative z-10 mt-4 inline-flex items-center gap-2 text-sm text-[var(--cream)] font-semibold"
             >
-              🧭 Search radius: {radiusMi} mi · change
+              <span>Search radius: {radiusMi} mi</span>
+              <span className="rounded-full border border-[var(--gold)]/60 px-3 py-1 text-xs text-[var(--gold)] hover:bg-[var(--gold)] hover:text-[#2a1206] transition">
+                Change
+              </span>
             </button>
             {error && (
               <p className="mt-6 text-base text-rose-300">{error}</p>
