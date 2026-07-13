@@ -433,14 +433,21 @@ export default function Home() {
 
   // Another story about the SAME spot — uses the chosen vibe, skips already-used
   // topics. No new GPS read, so it stays on the place even after driving on.
-  function tellMeMore() {
+  function tellMeMore(mode?: string) {
     if (!coords) { go(); return; }
     setError("");
     setStory(null);
     stop();
     setPhase("loading");
     setLoadingLine(LOADING_LINES[0]);
-    fetchStory(coords.lat, coords.lon, undefined, anchorName ?? undefined);
+    fetchStory(coords.lat, coords.lon, mode ?? undefined, anchorName ?? undefined);
+  }
+
+  // Tapping a vibe should immediately tell a new story about the same spot in
+  // that vibe — one tap, no hunting for a separate "go" button.
+  function pickVibe(mode: string) {
+    setSelectedMode(mode);
+    tellMeMore(mode);
   }
 
   // Tell a story about a chosen nearby place. Re-locks coords AND the name to it
@@ -811,13 +818,13 @@ export default function Home() {
             {/* Pick a vibe for the next story */}
             <div className="mb-4 text-left">
               <p className="kicker text-[10px] text-[var(--gold)]/80 mb-3">
-                Pick a vibe
+                Tap a vibe for another story here
               </p>
               <div className="flex flex-wrap gap-2">
                 {STORY_MODES.map((m) => (
                   <button
                     key={m.key}
-                    onClick={() => setSelectedMode(m.key)}
+                    onClick={() => pickVibe(m.key)}
                     className={`rounded-full px-4 py-2 text-sm font-semibold border transition ${
                       selectedMode === m.key
                         ? "bg-[var(--gold)] text-[#2a1206] border-[var(--gold)]"
@@ -835,7 +842,7 @@ export default function Home() {
                   what's ahead, what's around, what's behind. */}
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={tellMeMore}
+                  onClick={() => tellMeMore()}
                   className="glass w-full rounded-2xl py-3 px-2 hover:border-[var(--gold)]/40 transition text-center"
                 >
                   <span className="block text-base font-bold text-[var(--gold)]">✨ More Here</span>
