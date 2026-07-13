@@ -120,17 +120,43 @@ export default function MapExplorer({
       poiMarkersRef.current.forEach((m) => m.remove());
       poiMarkersRef.current = pois.map((p) => {
         const el = document.createElement("div");
+        el.style.cursor = "pointer";
+        el.style.display = "flex";
+        el.style.flexDirection = "column";
+        el.style.alignItems = "center";
+
         // The RoadLore logo — a gold speech bubble with a pin tail — as an
         // inline SVG so it stays crisp at any zoom and needs no image file.
-        el.innerHTML =
+        const pin = document.createElement("div");
+        pin.style.lineHeight = "0";
+        pin.style.filter = "drop-shadow(0 2px 3px rgba(0,0,0,.6))";
+        pin.innerHTML =
           '<svg width="34" height="36" viewBox="0 0 34 36" aria-hidden="true">' +
           '<path d="M17 2 C9 2 3.5 7 3.5 13.5 c0 5.5 4.5 9.5 9.5 10.5 L17 32 l4-8 c5-1 9.5-5 9.5-10.5 C30.5 7 25 2 17 2 Z" ' +
           'fill="#e8b769" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/>' +
           '<ellipse cx="12.5" cy="10" rx="4" ry="2.5" fill="#f6d9a0" opacity="0.55" transform="rotate(-25 12.5 10)"/>' +
           "</svg>";
-        el.style.cursor = "pointer";
-        el.style.lineHeight = "0";
-        el.style.filter = "drop-shadow(0 2px 3px rgba(0,0,0,.6))";
+
+        // A small readable name chip under the pin so you know what you're
+        // about to tap instead of guessing.
+        const label = document.createElement("div");
+        label.textContent = p.name;
+        label.style.marginBottom = "2px";
+        label.style.maxWidth = "120px";
+        label.style.overflow = "hidden";
+        label.style.textOverflow = "ellipsis";
+        label.style.whiteSpace = "nowrap";
+        label.style.fontSize = "11px";
+        label.style.fontWeight = "600";
+        label.style.lineHeight = "1.3";
+        label.style.color = "#fff";
+        label.style.background = "rgba(20,20,24,.82)";
+        label.style.padding = "1px 6px";
+        label.style.borderRadius = "6px";
+        label.style.textShadow = "0 1px 2px rgba(0,0,0,.8)";
+
+        el.appendChild(label);
+        el.appendChild(pin);
         el.addEventListener("click", () => onPick(p));
         return new maplibregl.Marker({ element: el, anchor: "bottom" })
           .setLngLat([p.lon, p.lat])
