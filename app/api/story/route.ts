@@ -105,9 +105,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Those coordinates don't look right. Try again." }, { status: 400 });
   }
 
+  // Look up what this device has already heard BEFORE researching, so both the
+  // cached-pool pick AND fresh generation skip whole TOPICS it's been told
+  // about — not just the exact story rows.
+  const sb = supabaseServer();
+  let heardIds = new Set<string>();
+  let heardLandmarkKeys = new Set<string>();
+  if (sb && deviceId) {
+    try {
+      const { data: heardRows } = await sb
+        .from("roadlore_story_heard")
+        .select("story_id")
+        .eq("device_id", deviceId);
+      heardIds = new Set((heardRows || []).map((r) => String(r.story_id)));
+      if (heardIds.size) {
+        const { data: heardStories } = await sb
+          .from("roadlore_shared_stories")
+          .select("landmark_key")
+          .in("id", Array.from(heardIds));
+        heardLandmarkKeys = new Set(
+          (heardStories || []).map((r) => String(r.landmark_key).toLowerCase())
+        );
+      }
+    } catch {
+      // Best-effort — if this fails we still have story-level dedupe below.
+    }
+  }
+
   let ctx;
   try {
-    ctx = await researchLocation(lat, lon, usedArticles, placeName);
+    // Merge heard topics into the "used" list so research digs past them.
+    ctx = await researchLocation(lat, lon, [...usedArticles, ...Array.from(heardLandmarkKeys)], placeName);
   } catch {
     return NextResponse.json(
       { error: "Couldn't reach the map services just now. Give it another tap in a sec." },
@@ -130,17 +158,11 @@ export async function POST(req: Request) {
     ...ctx.sources.map((s) => s.title.trim().toLowerCase()),
     ctx.placeLabel.trim().toLowerCase(),
   ];
-  const sb = supabaseServer();
-
-  // 1) Try the shared pool first — a cached story this device hasn't heard yet.
+  // 1) Try the shared pool first — a cached story about a topic this device
+  //    hasn't heard yet. Both the exact story AND its landmark must be new, so
+  //    a second take on the same subject never comes back.
   if (sb && deviceId) {
     try {
-      const { data: heardRows } = await sb
-        .from("roadlore_story_heard")
-        .select("story_id")
-        .eq("device_id", deviceId);
-      const heardIds = new Set((heardRows || []).map((r) => r.story_id));
-
       const { data: candidates } = await sb
         .from("roadlore_shared_stories")
         .select("*")
@@ -149,7 +171,9 @@ export async function POST(req: Request) {
         .order("created_at", { ascending: false })
         .limit(20);
 
-      const pick = (candidates || []).find((c) => !heardIds.has(c.id));
+      const pick = (candidates || []).find(
+        (c) => !heardIds.has(c.id) && !heardLandmarkKeys.has(String(c.landmark_key).toLowerCase())
+      );
       if (pick) {
         await sb.from("roadlore_story_heard").insert({ device_id: deviceId, story_id: pick.id });
         return NextResponse.json({

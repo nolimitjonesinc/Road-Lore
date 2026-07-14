@@ -487,9 +487,10 @@ export async function researchLocation(
   const usedSet = new Set(usedArticles.map((t) => t.toLowerCase()));
   const fresh = byDistance.filter((a) => !usedSet.has(a.title.toLowerCase()));
 
-  // Prefer fresh (unused) articles; fall back to the full nearest-first list if
-  // skipping leaves too few. Repeat taps thus walk outward from the pin.
-  const candidates = fresh.length >= 3 ? fresh : byDistance;
+  // Prefer fresh (unused) articles. Only fall back to the full nearest-first
+  // list when NOTHING fresh is left — so as long as one unheard topic exists
+  // nearby, repeat taps move to it instead of recycling one you've heard.
+  const candidates = fresh.length >= 1 ? fresh : byDistance;
 
   let top = candidates.slice(0, 4);
 
