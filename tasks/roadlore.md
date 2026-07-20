@@ -46,8 +46,8 @@
 - [x] Codes live in Supabase `roadlore_invites` (service-role only — browsers can't read or enumerate them). Kill a leaked code by setting active = false.
 - [x] Invite screen in the app (asked once per device, remembered in localStorage; server re-validates every request, so killed codes lock out instantly).
 - [x] Cost seatbelt: max 25 FRESH story generations per device per day (`roadlore_daily_usage`); cached shared-pool replays don't count.
-- [ ] DJ: run `supabase/sql/2026-07-20-invite-gate.sql` in the Supabase SQL editor, then insert your codes (lowercase) — see comments at the bottom of that file.
-- [ ] Deploy to production after the SQL is in (until both happen, prod has no gate / after deploy without SQL, NOBODY gets in — order matters).
+- [x] SQL ran + two codes minted (admin + friends & family) — done by Claude 2026-07-20 via the Supabase management API (CLI login). DJ holds the codes; they're not in the repo.
+- [x] Deployed to production 2026-07-20 and verified live: no code = blocked, wrong code = blocked, real code = in.
 
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 
