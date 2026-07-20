@@ -58,7 +58,9 @@ on-device (IndexedDB) so replays are instant and work offline.
 - Table: `roadlore_story_heard` — per-device log of which shared-pool stories a device has already played, so the same phone doesn't get the same story (or repeat landmark) twice.
   - Columns: device_id, story_id (fk -> roadlore_shared_stories), heard_at
   - RLS: public select/insert
-- Setup SQL for all of the above lives in `supabase/sql/2026-06-30-shared-story-pool.sql` — run once in the Supabase SQL editor.
+- Table: `roadlore_invites` — the invite-only guest list. `/api/story` and `/api/voice` require a valid active code before doing any paid work (fail-closed). Service-role access ONLY — no anon grants, so codes can't be enumerated from the browser. Codes are stored lowercase; kill a leaked one with `active = false`. Client remembers its code in localStorage (`roadlore.invite`, see `lib/inviteCode.ts`); server re-validates every request via `lib/inviteGate.ts`.
+- Table: `roadlore_daily_usage` — per-device count of fresh story generations per day; `/api/story` caps fresh generations at 25/device/day (cached pool replays exempt). Service-role only. Seatbelt fails open — the invite check is the wall.
+- Setup SQL for the story pool lives in `supabase/sql/2026-06-30-shared-story-pool.sql`; the invite gate tables live in `supabase/sql/2026-07-20-invite-gate.sql` — each run once in the Supabase SQL editor.
 - Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already in Vercel). The anon key is used server-side too (in `/api/story`) — RLS, not a service key, is what locks this down.
 
 ## Style of the story

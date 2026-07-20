@@ -8,6 +8,7 @@ import { useSpeech } from "@/hooks/useSpeech";
 import { useSavedStories } from "@/hooks/useSavedStories";
 import { STORY_MODES } from "@/lib/storyPrompt";
 import { deviceId } from "@/lib/deviceId";
+import { getInviteCode, saveInviteCode, clearInviteCode } from "@/lib/inviteCode";
 import type { MapPoi } from "./mapExplorer";
 
 // Leaflet touches window at import time, so it can only load in the browser.
@@ -192,6 +193,47 @@ export default function Home() {
   const [mapPois, setMapPois] = useState<MapPoi[]>([]);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapRadius, setMapRadius] = useState(MAP_RADIUS_METERS);
+  // Invite gate: the app is friends-and-family only while it runs on
+  // personal API keys. A device that has entered a valid code skips the
+  // gate; the server still re-checks the code on every story/voice call.
+  const [inviteOk, setInviteOk] = useState(false);
+  const [inviteChecked, setInviteChecked] = useState(false);
+  const [inviteInput, setInviteInput] = useState("");
+  const [inviteError, setInviteError] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+
+  useEffect(() => {
+    // inviteChecked keeps the gate hidden until localStorage has been read,
+    // so invited devices never see it flash on load.
+    setInviteOk(!!getInviteCode());
+    setInviteChecked(true);
+  }, []);
+
+  async function submitInvite(e: React.FormEvent) {
+    e.preventDefault();
+    const code = inviteInput.trim();
+    if (!code || inviteBusy) return;
+    setInviteBusy(true);
+    setInviteError("");
+    try {
+      const res = await fetch("/api/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        saveInviteCode(code);
+        setInviteOk(true);
+        setInviteInput("");
+      } else {
+        setInviteError(data.error || "That code didn't work. Try again.");
+      }
+    } catch {
+      setInviteError("Couldn't check the code — give it another try.");
+    }
+    setInviteBusy(false);
+  }
 
   useEffect(() => {
     try {
@@ -301,11 +343,19 @@ export default function Home() {
           placeName: placeName ?? undefined,
           lookAhead: lookAhead ?? false,
           deviceId: deviceId(),
+          invite: getInviteCode(),
         }),
       });
       setLoadingLine(LOADING_LINES[2]);
       const data = await res.json();
       if (!res.ok) {
+        // Code missing or killed — forget it and re-show the invite gate.
+        if (res.status === 401 && data.inviteRequired) {
+          clearInviteCode();
+          setInviteOk(false);
+          setPhase("idle");
+          return;
+        }
         setError(data.error || "Something went sideways. Try again.");
         setPhase("idle");
         return;
@@ -1039,6 +1089,45 @@ export default function Home() {
             Real places · real history · no made-up facts
           </p>
         </div>
+
+        {/* Invite gate — covers the whole app until a valid code is entered.
+            The real wall is server-side; this is the friendly front door. */}
+        {inviteChecked && !inviteOk && (
+          <div className="fixed inset-0 z-[3000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm">
+            <div className="glass w-full max-w-sm rounded-[28px] p-8 text-center rise">
+              <div className="text-5xl mb-4">🎟️</div>
+              <h2 className="text-2xl font-bold mb-2 font-[family-name:var(--font-display)]">
+                Invite only (for now)
+              </h2>
+              <p className="text-[var(--muted)] mb-6 leading-relaxed">
+                RoadLore is running in friends-and-family mode. Got an invite
+                code? Punch it in and hit the road.
+              </p>
+              <form onSubmit={submitInvite}>
+                <input
+                  type="text"
+                  value={inviteInput}
+                  onChange={(e) => setInviteInput(e.target.value)}
+                  placeholder="Your invite code"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="glass w-full rounded-2xl px-4 py-4 text-center text-lg text-[var(--cream)] placeholder-[var(--muted)]/60 border border-white/10 focus:border-[var(--gold)]/60 outline-none mb-4"
+                />
+                <button
+                  type="submit"
+                  disabled={inviteBusy || !inviteInput.trim()}
+                  className="cta w-full text-xl font-extrabold py-4 disabled:opacity-50"
+                >
+                  {inviteBusy ? "Checking…" : "Let Me In"}
+                </button>
+              </form>
+              {inviteError && (
+                <p className="mt-4 text-sm text-rose-300">{inviteError}</p>
+              )}
+            </div>
+          </div>
+        )}
       </main>
     </>
   );

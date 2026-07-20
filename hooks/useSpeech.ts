@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getInviteCode } from "@/lib/inviteCode";
 
 // Plays the story aloud using Gemini TTS audio from /api/voice.
 // speak() returns the generated audio blob so the caller can store it in
@@ -65,7 +66,7 @@ export function useSpeech() {
         const res = await fetch("/api/voice", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, storyId }),
+          body: JSON.stringify({ text, storyId, invite: getInviteCode() }),
         });
         const ct = res.headers.get("content-type") || "";
         if (res.ok && ct.includes("audio")) {

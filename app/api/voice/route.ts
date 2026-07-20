@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL } from "@/lib/supabaseConfig";
+import { validateInvite } from "@/lib/inviteGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,19 +53,27 @@ function buildWavHeader(
 }
 
 export async function POST(req: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "voice-not-configured" }, { status: 503 });
-  }
-
   let text = "";
   let storyId = "";
+  let invite = "";
   try {
     const body = await req.json();
     text = String(body.text || "").trim();
     storyId = typeof body.storyId === "string" ? body.storyId.trim() : "";
+    invite = typeof body.invite === "string" ? body.invite : "";
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
+  }
+
+  // Same wall as /api/story — narration burns Gemini quota, so no invite,
+  // no voice.
+  if (!(await validateInvite(invite))) {
+    return NextResponse.json({ error: "invite-required" }, { status: 401 });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "voice-not-configured" }, { status: 503 });
   }
 
   if (!text) {

@@ -40,6 +40,15 @@
 - [x] STORY MEMORY + POOL CAP: each request now carries the device's last 5 stories; the writer is hard-banned from retelling their facts/people/events (nearby articles repeat each other's history, so skipping used articles alone wasn't enough). Shared pool capped at 5 stories per landmark+vibe — requester still gets a fresh story past the cap, it just isn't stored.
 - [x] DEEP READ + NAME-FIRST LOOKUP: the anchor article (closest, or the exact article for a tapped pin found by name with a strict title match + 30km geo check) now gets its WHOLE Wikipedia page read (~7000 chars, History and all) instead of just the intro paragraph; other 3 sources stay intro-only. Writer prompt reinforced: never build stories around recent violence/victims even when full articles include it. Cost ~1¢/story (was ~½¢).
 
+## Invite gate (built 2026-07-20 — the wall before the paywall)
+
+- [x] Server-checked invite codes: /api/story and /api/voice refuse to spend money without a valid code (fail-closed if the check itself breaks).
+- [x] Codes live in Supabase `roadlore_invites` (service-role only — browsers can't read or enumerate them). Kill a leaked code by setting active = false.
+- [x] Invite screen in the app (asked once per device, remembered in localStorage; server re-validates every request, so killed codes lock out instantly).
+- [x] Cost seatbelt: max 25 FRESH story generations per device per day (`roadlore_daily_usage`); cached shared-pool replays don't count.
+- [ ] DJ: run `supabase/sql/2026-07-20-invite-gate.sql` in the Supabase SQL editor, then insert your codes (lowercase) — see comments at the bottom of that file.
+- [ ] Deploy to production after the SQL is in (until both happen, prod has no gate / after deploy without SQL, NOBODY gets in — order matters).
+
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 
 **Decisions locked (2026-06-16):**

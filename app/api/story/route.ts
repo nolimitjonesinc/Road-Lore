@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { researchLocation } from "@/lib/locationResearch";
 import { SYSTEM_PROMPT, buildUserMessage, angleForMode } from "@/lib/storyPrompt";
 import { SUPABASE_URL } from "@/lib/supabaseConfig";
+import { validateInvite, bumpDailyUsage } from "@/lib/inviteGate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,17 +72,10 @@ function safeAudioUrl(url: unknown): string | undefined {
 }
 
 export async function POST(req: Request) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "RoadLore isn't set up yet — the storyteller key is missing. (Add ANTHROPIC_API_KEY.)" },
-      { status: 500 }
-    );
-  }
-
-  let lat: number, lon: number, usedArticles: string[], recentStories: string[], mode: string | undefined, placeName: string | undefined, lookAhead: boolean, deviceId: string | undefined;
+  let lat: number, lon: number, usedArticles: string[], recentStories: string[], mode: string | undefined, placeName: string | undefined, lookAhead: boolean, deviceId: string | undefined, invite: string;
   try {
     const body = await req.json();
+    invite = typeof body.invite === "string" ? body.invite : "";
     lat = Number(body.latitude);
     lon = Number(body.longitude);
     usedArticles = Array.isArray(body.usedArticles) ? body.usedArticles.map(String) : [];
@@ -96,6 +90,24 @@ export async function POST(req: Request) {
     deviceId = typeof body.deviceId === "string" && body.deviceId.trim() ? body.deviceId.trim() : undefined;
   } catch {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
+  }
+
+  // The wall: RoadLore is invite-only while it runs on personal API keys.
+  // Checked before ANY paid or rate-limited work happens. inviteRequired
+  // tells the client to clear its stored code and re-show the invite screen.
+  if (!(await validateInvite(invite))) {
+    return NextResponse.json(
+      { error: "RoadLore is invite-only right now — enter your invite code to hit the road.", inviteRequired: true },
+      { status: 401 }
+    );
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json(
+      { error: "RoadLore isn't set up yet — the storyteller key is missing. (Add ANTHROPIC_API_KEY.)" },
+      { status: 500 }
+    );
   }
 
   if (
@@ -194,6 +206,17 @@ export async function POST(req: Request) {
   }
 
   // 2) Nothing cached for this device — generate a fresh story.
+  // Cost seatbelt: fresh generations (the part that costs real money) are
+  // capped per device AND per invite code per day — deviceId comes from the
+  // client and can be rotated, so the code-level cap is what actually bounds
+  // a leaked code's damage. Cached pool replays above are exempt.
+  if (!(await bumpDailyUsage(deviceId || "unknown", invite))) {
+    return NextResponse.json(
+      { error: "Whoa, road warrior — that's a full day of stories. The storyteller needs to rest their voice; come back tomorrow." },
+      { status: 429 }
+    );
+  }
+
   const angle = angleForMode(mode);
 
   const anthropic = new Anthropic({ apiKey });
