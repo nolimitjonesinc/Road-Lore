@@ -59,6 +59,20 @@ $$;
 revoke all on function public.roadlore_bump_usage(text, date) from public, anon, authenticated;
 grant execute on function public.roadlore_bump_usage(text, date) to service_role;
 
+-- People without a code can ask for one from the invite screen. Requests
+-- land here (and get emailed to Danny via Resend). Server-only like the rest.
+create table if not exists public.roadlore_invite_requests (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  email text not null,
+  how_found text not null,
+  created_at timestamptz not null default now()
+);
+
+alter table public.roadlore_invite_requests enable row level security;
+revoke all on table public.roadlore_invite_requests from anon, authenticated;
+grant all privileges on table public.roadlore_invite_requests to service_role;
+
 -- Add your codes like this (lowercase!) — one row per code. Do NOT commit
 -- real codes to git; type them straight into the SQL editor.
 --

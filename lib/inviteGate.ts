@@ -79,6 +79,21 @@ export async function touchInvite(code: unknown): Promise<void> {
   }
 }
 
+// Generic daily counter for anything else that needs a lid on it (e.g.
+// invite-request submissions per IP). Same atomic Postgres bump, same
+// fail-open seatbelt behavior.
+export async function bumpBucket(key: string, cap: number): Promise<boolean> {
+  const sb = client();
+  if (!sb) return true;
+  try {
+    const { data, error } = await sb.rpc("roadlore_bump_usage", { p_key: key, p_day: today() });
+    if (error) return true;
+    return Number(data) <= cap;
+  } catch {
+    return true;
+  }
+}
+
 // Count this request against today's device and code budgets, and say
 // whether it's still allowed. The +1 happens atomically inside Postgres
 // (roadlore_bump_usage), so parallel requests can't race past the cap.

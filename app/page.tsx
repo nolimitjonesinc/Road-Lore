@@ -201,6 +201,14 @@ export default function Home() {
   const [inviteInput, setInviteInput] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
+  // "No code? Ask for one" mini-form on the gate.
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [reqName, setReqName] = useState("");
+  const [reqEmail, setReqEmail] = useState("");
+  const [reqStory, setReqStory] = useState("");
+  const [reqBusy, setReqBusy] = useState(false);
+  const [reqDone, setReqDone] = useState(false);
+  const [reqError, setReqError] = useState("");
 
   useEffect(() => {
     // inviteChecked keeps the gate hidden until localStorage has been read,
@@ -233,6 +241,26 @@ export default function Home() {
       setInviteError("Couldn't check the code — give it another try.");
     }
     setInviteBusy(false);
+  }
+
+  async function submitRequest(e: React.FormEvent) {
+    e.preventDefault();
+    if (reqBusy) return;
+    setReqBusy(true);
+    setReqError("");
+    try {
+      const res = await fetch("/api/request-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: reqName, email: reqEmail, howFound: reqStory }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) setReqDone(true);
+      else setReqError(data.error || "That didn't go through — try again.");
+    } catch {
+      setReqError("That didn't go through — try again.");
+    }
+    setReqBusy(false);
   }
 
   useEffect(() => {
@@ -1093,37 +1121,111 @@ export default function Home() {
         {/* Invite gate — covers the whole app until a valid code is entered.
             The real wall is server-side; this is the friendly front door. */}
         {inviteChecked && !inviteOk && (
-          <div className="fixed inset-0 z-[3000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm">
-            <div className="glass w-full max-w-sm rounded-[28px] p-8 text-center rise">
-              <div className="text-5xl mb-4">🎟️</div>
-              <h2 className="text-2xl font-bold mb-2 font-[family-name:var(--font-display)]">
-                Invite only (for now)
-              </h2>
-              <p className="text-[var(--muted)] mb-6 leading-relaxed">
-                RoadLore is running in friends-and-family mode. Got an invite
-                code? Punch it in and hit the road.
-              </p>
-              <form onSubmit={submitInvite}>
-                <input
-                  type="text"
-                  value={inviteInput}
-                  onChange={(e) => setInviteInput(e.target.value)}
-                  placeholder="Your invite code"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className="glass w-full rounded-2xl px-4 py-4 text-center text-lg text-[var(--cream)] placeholder-[var(--muted)]/60 border border-white/10 focus:border-[var(--gold)]/60 outline-none mb-4"
-                />
-                <button
-                  type="submit"
-                  disabled={inviteBusy || !inviteInput.trim()}
-                  className="cta w-full text-xl font-extrabold py-4 disabled:opacity-50"
-                >
-                  {inviteBusy ? "Checking…" : "Let Me In"}
-                </button>
-              </form>
-              {inviteError && (
-                <p className="mt-4 text-sm text-rose-300">{inviteError}</p>
+          <div className="fixed inset-0 z-[3000] flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm overflow-y-auto">
+            <div className="glass w-full max-w-sm rounded-[28px] p-8 text-center rise my-auto max-h-[90vh] overflow-y-auto">
+              {!requestOpen ? (
+                <>
+                  <div className="text-5xl mb-4">🎟️</div>
+                  <h2 className="text-2xl font-bold mb-2 font-[family-name:var(--font-display)]">
+                    Invite only (for now)
+                  </h2>
+                  <p className="text-[var(--muted)] mb-6 leading-relaxed">
+                    RoadLore is running in friends-and-family mode. Got an
+                    invite code? Punch it in and hit the road.
+                  </p>
+                  <form onSubmit={submitInvite}>
+                    <input
+                      type="text"
+                      value={inviteInput}
+                      onChange={(e) => setInviteInput(e.target.value)}
+                      placeholder="Your invite code"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="glass w-full rounded-2xl px-4 py-4 text-center text-lg text-[var(--cream)] placeholder-[var(--muted)]/60 border border-white/10 focus:border-[var(--gold)]/60 outline-none mb-4"
+                    />
+                    <button
+                      type="submit"
+                      disabled={inviteBusy || !inviteInput.trim()}
+                      className="cta w-full text-xl font-extrabold py-4 disabled:opacity-50"
+                    >
+                      {inviteBusy ? "Checking…" : "Let Me In"}
+                    </button>
+                  </form>
+                  {inviteError && (
+                    <p className="mt-4 text-sm text-rose-300">{inviteError}</p>
+                  )}
+                  <button
+                    onClick={() => setRequestOpen(true)}
+                    className="mt-5 text-sm text-[var(--gold)]/90 hover:text-[var(--gold)] font-semibold transition"
+                  >
+                    No code? Knock on the door →
+                  </button>
+                </>
+              ) : reqDone ? (
+                <>
+                  <div className="text-5xl mb-4">📬</div>
+                  <h2 className="text-2xl font-bold mb-2 font-[family-name:var(--font-display)]">
+                    Request sent!
+                  </h2>
+                  <p className="text-[var(--muted)] leading-relaxed">
+                    Danny just got your note. If he likes your vibe, an invite
+                    code is headed to your inbox. 🚗💨
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-5xl mb-4">👋</div>
+                  <h2 className="text-2xl font-bold mb-2 font-[family-name:var(--font-display)]">
+                    Knock knock
+                  </h2>
+                  <p className="text-[var(--muted)] mb-6 leading-relaxed">
+                    Want in? Tell Danny who you are and he&apos;ll send you a
+                    code.
+                  </p>
+                  <form onSubmit={submitRequest}>
+                    <input
+                      type="text"
+                      value={reqName}
+                      onChange={(e) => setReqName(e.target.value)}
+                      placeholder="Your name"
+                      maxLength={80}
+                      className="glass w-full rounded-2xl px-4 py-3.5 text-base text-[var(--cream)] placeholder-[var(--muted)]/60 border border-white/10 focus:border-[var(--gold)]/60 outline-none mb-3"
+                    />
+                    <input
+                      type="email"
+                      value={reqEmail}
+                      onChange={(e) => setReqEmail(e.target.value)}
+                      placeholder="Your email"
+                      maxLength={120}
+                      className="glass w-full rounded-2xl px-4 py-3.5 text-base text-[var(--cream)] placeholder-[var(--muted)]/60 border border-white/10 focus:border-[var(--gold)]/60 outline-none mb-3"
+                    />
+                    <textarea
+                      value={reqStory}
+                      onChange={(e) => setReqStory(e.target.value)}
+                      placeholder="How do you know Danny — or where'd you find RoadLore?"
+                      maxLength={600}
+                      rows={3}
+                      className="glass w-full rounded-2xl px-4 py-3.5 text-base text-[var(--cream)] placeholder-[var(--muted)]/60 border border-white/10 focus:border-[var(--gold)]/60 outline-none mb-4 resize-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={reqBusy || !reqName.trim() || !reqEmail.trim() || !reqStory.trim()}
+                      className="cta w-full text-xl font-extrabold py-4 disabled:opacity-50"
+                    >
+                      {reqBusy ? "Sending…" : "Send It ✉️"}
+                    </button>
+                  </form>
+                  {reqError && (
+                    <p className="mt-4 text-sm text-rose-300">{reqError}</p>
+                  )}
+                  <button
+                    onClick={() => setRequestOpen(false)}
+                    className="mt-5 text-sm text-[var(--muted)] hover:text-[var(--cream)] transition"
+                  >
+                    ← I have a code
+                  </button>
+                </>
               )}
             </div>
           </div>

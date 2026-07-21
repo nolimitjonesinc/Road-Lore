@@ -59,7 +59,8 @@ on-device (IndexedDB) so replays are instant and work offline.
   - Columns: device_id, story_id (fk -> roadlore_shared_stories), heard_at
   - RLS: public select/insert
 - Table: `roadlore_invites` — the invite-only guest list. `/api/story` and `/api/voice` require a valid active code before doing any paid work (fail-closed). Service-role access ONLY — no anon grants, so codes can't be enumerated from the browser. Codes are stored lowercase; kill a leaked one with `active = false`. Client remembers its code in localStorage (`roadlore.invite`, see `lib/inviteCode.ts`); server re-validates every request via `lib/inviteGate.ts`.
-- Table: `roadlore_daily_usage` — per-device count of fresh story generations per day; `/api/story` caps fresh generations at 25/device/day (cached pool replays exempt). Service-role only. Seatbelt fails open — the invite check is the wall.
+- Table: `roadlore_daily_usage` — generic daily counters (atomic `roadlore_bump_usage` Postgres function): `dev:<deviceId>` caps fresh stories at 25/device/day, `code:<invite>` caps 150/code/day, `req:<ip>` caps invite requests at 5/IP/day. Cached pool replays exempt. Service-role only. Seatbelt fails open — the invite check is the wall.
+- Table: `roadlore_invite_requests` — "knock knock" requests from the gate screen (name, email, how_found). `/api/request-invite` saves here AND emails Danny via Resend (`RESEND_API_KEY` env, sends from hello@loomiverse.ai — same Resend account as Silly Goose). Honeypot `website` field silently drops bots. Service-role only.
 - Setup SQL for the story pool lives in `supabase/sql/2026-06-30-shared-story-pool.sql`; the invite gate tables live in `supabase/sql/2026-07-20-invite-gate.sql` — each run once in the Supabase SQL editor.
 - Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already in Vercel). The anon key is used server-side too (in `/api/story`) — RLS, not a service key, is what locks this down.
 

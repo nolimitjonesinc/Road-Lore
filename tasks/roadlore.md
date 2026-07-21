@@ -48,6 +48,7 @@
 - [x] Cost seatbelt: max 25 FRESH story generations per device per day (`roadlore_daily_usage`); cached shared-pool replays don't count.
 - [x] SQL ran + two codes minted (admin + friends & family) — done by Claude 2026-07-20 via the Supabase management API (CLI login). DJ holds the codes; they're not in the repo.
 - [x] Deployed to production 2026-07-20 and verified live: no code = blocked, wrong code = blocked, real code = in.
+- [x] "Knock knock" request-a-code form on the gate (name + email + how-you-know-Danny) → saves to roadlore_invite_requests + emails DJ via Resend (key reused from Silly Goose). Honeypot for bots, 5 requests/IP/day. Live + verified end-to-end 2026-07-20.
 
 ## v2 — Monetization (LemonSqueezy paywall)  ← ACTIVE NEXT
 
