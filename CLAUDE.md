@@ -1,12 +1,32 @@
-# RoadLore — Project Rules for Claude
+# RoadLore — start here
 
-## What this is
+**Before answering ANY question about this project, or proposing ANY change:
+read `PROJECT.md` in this folder.**
+
+It covers what this is, how it works, the design rules that must not be broken,
+and what's already known-missing. Check every new request against its
+"Rules of the house" section before agreeing to build it.
+
+Other docs here:
+- `TASKS.md` — what's next
+- `STATUS.md` — auto-generated snapshot, updated by Status Brain on every push
+- `README.md` — setup/deploy instructions
+- `../build-logs/logs/road-lore.md` — *why* decisions were made, and what was already tried and rejected (none found yet — see PROJECT.md section 9)
+
+When you add, remove, or meaningfully change a feature, update `PROJECT.md` in
+the same session. A stale doc is worse than no doc.
+
+---
+
+## Project-specific rules (kept from the original CLAUDE.md)
+
+### What this is
 A PWA-style web app: tap one button → get a fun, spoken, sourced story about
 where you physically are right now. Next.js (App Router) + TypeScript +
 Tailwind, deployed on Vercel. Stories save to Supabase and audio is cached
 on-device (IndexedDB) so replays are instant and work offline.
 
-## The non-negotiable rule: NO FAKE FACTS
+### The non-negotiable rule: NO FAKE FACTS
 - Every place name and landmark fact must come from a real lookup
   (OpenStreetMap + Wikipedia). The story model may ONLY use the context the
   server fetched.
@@ -14,7 +34,7 @@ on-device (IndexedDB) so replays are instant and work offline.
   It NEVER invents a story.
 - Do not add "mock" or "demo" data paths.
 
-## Architecture
+### Architecture
 - `app/page.tsx` — main UI. Client component.
 - `app/api/story/route.ts` — server route: validate coords → research → ask Claude → return.
 - `app/api/voice/route.ts` — server route: text → Gemini TTS → WAV audio.
@@ -26,26 +46,26 @@ on-device (IndexedDB) so replays are instant and work offline.
 - `hooks/useSpeech.ts` — Gemini TTS playback with on-device audio cache.
 - `hooks/useSavedStories.ts` — Supabase CRUD for saved stories (per device ID).
 
-## Data sources (all free, all keyless)
+### Data sources (all free, all keyless)
 - Reverse geocode: OpenStreetMap Nominatim.
 - Nearby landmarks: Wikipedia GeoSearch API (10km radius, 25 results, shuffled).
 - Article content: Wikipedia Action API, full intro section up to 2500 chars.
 - Physical POIs: OpenStreetMap Overpass API (1km radius).
 
-## The AI writer
+### The AI writer
 - Model: `claude-sonnet-4-6`. Server-side only.
 - Picks a random story angle each tap (ghost story, natural history, famous people, etc.)
 - Tracks used Wikipedia articles in localStorage to avoid repeating topics.
 - Cost: ~$0.005 per tap.
 - Key lives in `ANTHROPIC_API_KEY` (env only).
 
-## The voice (TTS)
+### The voice (TTS)
 - Gemini TTS (`gemini-2.5-flash-preview-tts`, voice `Puck`). Server-side only.
 - Gemini returns raw PCM; we wrap it in a WAV header.
 - Audio cached in IndexedDB on device — replays are instant, no second API call.
 - Cost: free tier. Key lives in `GEMINI_API_KEY`.
 
-## Supabase
+### Supabase
 - Project: ftcdqmrjjooluihysuyc
 - Audio bucket: `road-lore-audio` (public). Replaces the old `story-audio` bucket — Supabase can't rename buckets, so old links there still work, new audio writes here.
 - Table: `roadlore_saved_stories` — a user's personal bookmarked stories.
@@ -64,10 +84,11 @@ on-device (IndexedDB) so replays are instant and work offline.
 - Setup SQL for the story pool lives in `supabase/sql/2026-06-30-shared-story-pool.sql`; the invite gate tables live in `supabase/sql/2026-07-20-invite-gate.sql` — each run once in the Supabase SQL editor.
 - Env vars: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (already in Vercel). The anon key is used server-side too (in `/api/story`) — RLS, not a service key, is what locks this down.
 
-## Style of the story
+### Style of the story
 Fun, touristy, lightly sassy, cinematic, family-safe. Written for listening,
 not reading. Under ~60 seconds. No directions, no "look at the screen."
 
-## Where things are going (see tasks/roadlore.md)
-Core loop is live and working. Next: story variety improvements, drive mode,
-share stories, user accounts (upgrade from device ID).
+### Where things are going
+See `TASKS.md`. Core loop is live and working. Next: LemonSqueezy paywall
+(v2, active), then story variety improvements, drive mode, share stories,
+user accounts (upgrade from device ID).
