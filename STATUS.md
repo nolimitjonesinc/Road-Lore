@@ -1,5 +1,5 @@
 # Road-Lore — Status
-_Auto-updated by Status Brain on every push. Last change: Add compressed demo video to public folder._
+_Auto-updated by Status Brain on every push. Last change: Add the 4-file project doc standard (CLAUDE.md, PROJECT.md, TASKS.md, STATUS.md)._
 
 **Status:** Live  
 **What it is:** A mobile web app that uses your GPS location, real landmarks from OpenStreetMap and Wikipedia, and Claude AI to generate short, accurate tour-guide stories read aloud by your phone's voice.  
@@ -23,6 +23,7 @@ _Auto-updated by Status Brain on every push. Last change: Add compressed demo vi
 - Demo video (compressed MP4 in public folder)
 
 ## Recent changes (newest first)
+- 2026-08-04 — Add the 4-file project doc standard (CLAUDE.md, PROJECT.md, TASKS.md, STATUS.md)
 - 2026-07-21 — Add compressed demo video to public folder
 - 2026-07-20 — Knock-knock form on the invite gate: request a code, saved + emailed via Resend
 - 2026-07-20 — Mark invite gate live: SQL run, codes minted, prod deploy verified
@@ -30,7 +31,6 @@ _Auto-updated by Status Brain on every push. Last change: Add compressed demo vi
 - 2026-07-14 — Deduplicate stories by topic, not just exact row, so subjects don't repeat
 - 2026-07-13 — Cleaner search-radius bar: drop emoji, make Change a real button
 - 2026-07-13 — Vibe buttons generate a story on tap instead of just highlighting
-- 2026-07-13 — Label map pins with landmark names so taps aren't a guess
 
 ## Reusable parts (for other projects)
 - **Device ID tracking** — persistent browser ID without login — `lib/deviceId.ts`
